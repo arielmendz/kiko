@@ -12,8 +12,13 @@ hears the wake word **“kiko”**.
 
 - Native Android app written in Java.
 - On-device speech recognition only; no network permission is requested.
-- Spanish wake-word matching that ignores case, punctuation, and accents.
+- Checks for an installed Spanish on-device model and asks the system speech
+  service to download one when necessary.
+- Spanish wake-word matching ignores case, punctuation, and accents, and accepts
+  common `Quico`/`Quiko` transcriptions.
 - Clear UI states for permission, recognition availability, listening, and match.
+- Displays the latest recognition hypothesis or actionable error on screen for
+  physical-device diagnosis.
 
 The current implementation uses the speech recognizer supplied by the Android
 device. A future local-model milestone will replace this platform dependency with
@@ -30,6 +35,10 @@ Requirements:
 Open the repository in Android Studio, let Gradle sync, and run the `app`
 configuration. Grant microphone access when prompted, then say “kiko”.
 
+If a Spanish model needs to be downloaded, leave the phone online until the system
+speech service completes it, then close and reopen Kiko. Audio recognition remains
+on-device; Kiko itself has no network permission.
+
 From a configured command line:
 
 ```sh
@@ -43,6 +52,8 @@ From a configured command line:
   permission flow, recognizer lifecycle, and screen state.
 - `app/src/main/java/com/kiko/app/WakeWordMatcher.java` contains the deterministic,
   independently tested wake-word matcher.
+- `app/src/main/java/com/kiko/app/SpeechLanguageSelector.java` selects an installed
+  Spanish recognition model without coupling that logic to Android UI state.
 - `docs/PRODUCT.md` defines the product goal, current milestone, and roadmap.
 - `docs/ARCHITECTURE.md` records the present design and intended architectural
   boundaries.

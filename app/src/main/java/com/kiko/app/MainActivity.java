@@ -1,47 +1,57 @@
 package com.kiko.app;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.graphics.Color;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.speech.RecognitionSupport;
+import android.speech.RecognitionSupportCallback;
 import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import java.util.ArrayList;
 
 public final class MainActivity extends Activity implements RecognitionListener {
+    private static final String TAG = "KikoSpeech";
     private static final int MICROPHONE_PERMISSION_REQUEST = 100;
-    private static final long RESTART_DELAY_MS = 350L;
+    private static final long NORMAL_RESTART_DELAY_MS = 1_000L;
+    private static final long BUSY_RESTART_DELAY_MS = 2_000L;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable restartListening = this::startListening;
 
     private TextView statusView;
+    private TextView detailView;
     private SpeechRecognizer speechRecognizer;
     private Intent recognizerIntent;
+    private String recognitionLanguage = SpeechLanguageSelector.PREFERRED_SPANISH;
     private boolean activityStarted;
     private boolean listening;
     private boolean wakeWordDetected;
+    private boolean supportCheckInProgress;
+    private boolean modelDownloadRequested;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        statusView = createStatusView();
-        setContentView(statusView);
+        setContentView(createContentView());
 
         recognizerIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
                 .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
                         RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                .putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es")
+                .putExtra(RecognizerIntent.EXTRA_LANGUAGE, recognitionLanguage)
                 .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                 .putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
                 .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5);
@@ -59,6 +69,7 @@ public final class MainActivity extends Activity implements RecognitionListener 
         activityStarted = false;
         handler.removeCallbacks(restartListening);
         listening = false;
+        supportCheckInProgress = false;
         if (speechRecognizer != null) {
             speechRecognizer.cancel();
         }
@@ -92,19 +103,33 @@ public final class MainActivity extends Activity implements RecognitionListener 
         }
     }
 
-    private TextView createStatusView() {
-        TextView view = new TextView(this);
-        view.setText(R.string.status_listening);
-        view.setTextColor(getColor(R.color.kiko_text));
-        view.setTextSize(36);
-        view.setGravity(Gravity.CENTER);
-        view.setPadding(32, 32, 32, 32);
-        view.setBackgroundColor(getColor(R.color.kiko_background));
-        view.setLayoutParams(new FrameLayout.LayoutParams(
+    private LinearLayout createContentView() {
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setGravity(Gravity.CENTER);
+        content.setPadding(48, 48, 48, 48);
+        content.setBackgroundColor(getColor(R.color.kiko_background));
+        content.setLayoutParams(new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
         ));
-        return view;
+
+        statusView = new TextView(this);
+        statusView.setText(R.string.status_listening);
+        statusView.setTextColor(getColor(R.color.kiko_text));
+        statusView.setTextSize(36);
+        statusView.setGravity(Gravity.CENTER);
+
+        detailView = new TextView(this);
+        detailView.setText(R.string.detail_starting);
+        detailView.setTextColor(getColor(R.color.kiko_muted));
+        detailView.setTextSize(18);
+        detailView.setGravity(Gravity.CENTER);
+        detailView.setPadding(0, 32, 0, 0);
+
+        content.addView(statusView);
+        content.addView(detailView);
+        return content;
     }
 
     private void ensurePermissionAndListen() {
@@ -122,24 +147,123 @@ public final class MainActivity extends Activity implements RecognitionListener 
     }
 
     private void initializeRecognizerAndListen() {
-        if (!activityStarted || speechRecognizer != null) {
+        if (!activityStarted) {
+            return;
+        }
+
+        if (speechRecognizer == null) {
+            if (!SpeechRecognizer.isOnDeviceRecognitionAvailable(this)) {
+                showStatus(R.string.status_unavailable, false);
+                showDetail(R.string.detail_local_only);
+                return;
+            }
+
+            speechRecognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(this);
+            speechRecognizer.setRecognitionListener(this);
+        }
+
+        checkLanguageSupportAndListen();
+    }
+
+    private void checkLanguageSupportAndListen() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
             startListening();
             return;
         }
 
-        if (!SpeechRecognizer.isOnDeviceRecognitionAvailable(this)) {
-            showStatus(R.string.status_unavailable, false);
+        supportCheckInProgress = true;
+        showStatus(R.string.status_checking_language, false);
+        showDetail(R.string.detail_local_only);
+        speechRecognizer.checkRecognitionSupport(
+                recognizerIntent,
+                getMainExecutor(),
+                new RecognitionSupportCallback() {
+                    @Override
+                    public void onSupportResult(RecognitionSupport support) {
+                        supportCheckInProgress = false;
+                        if (!activityStarted) {
+                            return;
+                        }
+                        handleLanguageSupport(support);
+                    }
+
+                    @Override
+                    public void onError(int error) {
+                        supportCheckInProgress = false;
+                        Log.w(TAG, "Unable to check recognition support: " + error);
+                        if (activityStarted) {
+                            showDetail(getString(
+                                    R.string.detail_support_check_failed,
+                                    error
+                            ));
+                            startListening();
+                        }
+                    }
+                }
+        );
+    }
+
+    @SuppressLint("NewApi")
+    private void handleLanguageSupport(RecognitionSupport support) {
+        String installed = SpeechLanguageSelector.selectSpanish(
+                support.getInstalledOnDeviceLanguages()
+        );
+        if (installed != null) {
+            setRecognitionLanguage(installed);
+            showDetail(getString(R.string.detail_language_ready, installed));
+            startListening();
             return;
         }
 
-        speechRecognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(this);
-        speechRecognizer.setRecognitionListener(this);
-        startListening();
+        String pending = SpeechLanguageSelector.selectSpanish(
+                support.getPendingOnDeviceLanguages()
+        );
+        if (pending != null) {
+            showStatus(R.string.status_downloading_language, false);
+            showDetail(getString(R.string.detail_language_pending, pending));
+            return;
+        }
+
+        String downloadable = SpeechLanguageSelector.selectSpanish(
+                support.getSupportedOnDeviceLanguages()
+        );
+        if (downloadable != null) {
+            setRecognitionLanguage(downloadable);
+            requestLanguageModelDownload(downloadable);
+            return;
+        }
+
+        showStatus(R.string.status_language_unsupported, false);
+        showDetail(R.string.detail_language_unsupported);
+    }
+
+    private void setRecognitionLanguage(String languageTag) {
+        recognitionLanguage = languageTag;
+        recognizerIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, languageTag);
+    }
+
+    private void requestLanguageModelDownload(String languageTag) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            showStatus(R.string.status_language_unsupported, false);
+            showDetail(R.string.detail_install_language_manually);
+            return;
+        }
+
+        showStatus(R.string.status_downloading_language, false);
+        showDetail(getString(R.string.detail_language_download, languageTag));
+        if (!modelDownloadRequested) {
+            modelDownloadRequested = true;
+            Log.i(TAG, "Requesting on-device model download for " + languageTag);
+            speechRecognizer.triggerModelDownload(recognizerIntent);
+        }
     }
 
     private void startListening() {
         handler.removeCallbacks(restartListening);
-        if (!activityStarted || listening || speechRecognizer == null) {
+        if (!activityStarted
+                || listening
+                || supportCheckInProgress
+                || speechRecognizer == null) {
             return;
         }
 
@@ -147,20 +271,27 @@ public final class MainActivity extends Activity implements RecognitionListener 
             showStatus(R.string.status_listening, false);
         }
         listening = true;
+        Log.d(TAG, "Starting on-device recognition in " + recognitionLanguage);
         speechRecognizer.startListening(recognizerIntent);
     }
 
-    private void scheduleRestart() {
+    private void scheduleRestart(long delayMillis) {
         listening = false;
         if (activityStarted && speechRecognizer != null) {
             handler.removeCallbacks(restartListening);
-            handler.postDelayed(restartListening, RESTART_DELAY_MS);
+            handler.postDelayed(restartListening, delayMillis);
         }
     }
 
     private void inspectResults(Bundle results) {
         ArrayList<String> hypotheses =
                 results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+        if (hypotheses == null || hypotheses.isEmpty()) {
+            return;
+        }
+
+        Log.d(TAG, "Recognition hypotheses: " + hypotheses);
+        showDetail(getString(R.string.detail_heard, hypotheses.get(0)));
         if (WakeWordMatcher.containsKiko(hypotheses)) {
             wakeWordDetected = true;
             showStatus(R.string.status_detected, true);
@@ -174,8 +305,21 @@ public final class MainActivity extends Activity implements RecognitionListener 
         ));
     }
 
+    private void showDetail(int stringResource) {
+        detailView.setText(stringResource);
+    }
+
+    private void showDetail(String text) {
+        detailView.setText(text);
+    }
+
     @Override
     public void onReadyForSpeech(Bundle params) {
+        Log.d(TAG, "Recognizer ready for speech");
+        if (!wakeWordDetected) {
+            showStatus(R.string.status_listening, false);
+        }
+        showDetail(getString(R.string.detail_language_ready, recognitionLanguage));
     }
 
     @Override
@@ -193,17 +337,51 @@ public final class MainActivity extends Activity implements RecognitionListener 
     @Override
     public void onEndOfSpeech() {
         listening = false;
+        Log.d(TAG, "End of speech");
     }
 
     @Override
     public void onError(int error) {
-        scheduleRestart();
+        Log.w(TAG, "Recognition error: " + error);
+        switch (error) {
+            case SpeechRecognizer.ERROR_SPEECH_TIMEOUT:
+            case SpeechRecognizer.ERROR_NO_MATCH:
+                showDetail(R.string.detail_no_speech);
+                scheduleRestart(NORMAL_RESTART_DELAY_MS);
+                break;
+            case SpeechRecognizer.ERROR_RECOGNIZER_BUSY:
+                showDetail(R.string.detail_recognizer_busy);
+                scheduleRestart(BUSY_RESTART_DELAY_MS);
+                break;
+            case SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE:
+                listening = false;
+                requestLanguageModelDownload(recognitionLanguage);
+                break;
+            case SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED:
+                listening = false;
+                showStatus(R.string.status_language_unsupported, false);
+                showDetail(getString(
+                        R.string.detail_language_not_supported,
+                        recognitionLanguage
+                ));
+                break;
+            case SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS:
+                listening = false;
+                showStatus(R.string.status_permission, false);
+                showDetail(R.string.detail_permission_denied);
+                break;
+            default:
+                listening = false;
+                showStatus(R.string.status_recognition_error, false);
+                showDetail(getString(R.string.detail_error_code, error));
+                break;
+        }
     }
 
     @Override
     public void onResults(Bundle results) {
         inspectResults(results);
-        scheduleRestart();
+        scheduleRestart(NORMAL_RESTART_DELAY_MS);
     }
 
     @Override

@@ -1,13 +1,19 @@
 package com.kiko.app;
 
 import java.text.Normalizer;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 public final class WakeWordMatcher {
     private static final Pattern DIACRITICS = Pattern.compile("\\p{M}+");
     private static final Pattern NON_ALPHANUMERIC = Pattern.compile("[^\\p{L}\\p{N}]+");
+    private static final Set<String> KIKO_TRANSCRIPTIONS = new HashSet<>(
+            Arrays.asList("kiko", "quico", "quiko")
+    );
 
     private WakeWordMatcher() {
     }
@@ -18,15 +24,15 @@ public final class WakeWordMatcher {
         }
 
         for (String hypothesis : hypotheses) {
-            if (containsToken(hypothesis, "kiko")) {
+            if (containsAnyToken(hypothesis, KIKO_TRANSCRIPTIONS)) {
                 return true;
             }
         }
         return false;
     }
 
-    static boolean containsToken(String text, String expectedToken) {
-        if (text == null || expectedToken == null) {
+    private static boolean containsAnyToken(String text, Set<String> expectedTokens) {
+        if (text == null) {
             return false;
         }
 
@@ -35,7 +41,7 @@ public final class WakeWordMatcher {
         normalized = normalized.toLowerCase(Locale.ROOT);
 
         for (String token : NON_ALPHANUMERIC.split(normalized)) {
-            if (expectedToken.equals(token)) {
+            if (expectedTokens.contains(token)) {
                 return true;
             }
         }

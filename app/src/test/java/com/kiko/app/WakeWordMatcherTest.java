@@ -24,6 +24,16 @@ public final class WakeWordMatcherTest {
     }
 
     @Test
+    public void matchesCommonSpanishTranscriptions() {
+        assertTrue(WakeWordMatcher.containsKiko(
+                Arrays.asList("oye Quico", "ven aquí")
+        ));
+        assertTrue(WakeWordMatcher.containsKiko(
+                Collections.singletonList("quiko")
+        ));
+    }
+
+    @Test
     public void rejectsSubstrings() {
         assertFalse(WakeWordMatcher.containsKiko(
                 Arrays.asList("kikongo", "chikito")

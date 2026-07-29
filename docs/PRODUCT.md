@@ -12,21 +12,30 @@ While the app is visible:
 
 1. it requests microphone permission;
 2. it starts Android's on-device Spanish speech recognizer;
-3. it listens for “kiko”; and
-4. it displays “escuchando!” when a recognition hypothesis contains that word.
+3. it verifies that an on-device Spanish model is installed, requesting a system
+   model download when one is available but missing;
+4. it listens for “kiko”; and
+5. it displays “escuchando!” when a recognition hypothesis contains that word.
 
 Matching is case-insensitive, accent-insensitive, and token-based, so punctuation
 around the word is accepted while substrings such as “kikongo” are rejected.
+`Quico` and `Quiko` are accepted because they are common speech-to-text spellings
+of the spoken name. The screen shows the latest hypothesis or a meaningful error
+to make device-specific recognition behavior observable.
 
 ## Current limitations
 
 - Recognition is active only while the activity is in the foreground.
 - Recognition quality and availability depend on the device's installed on-device
   recognition service.
+- Android's utterance-oriented recognizer still times out and restarts during
+  silence; it is not a production-quality continuous wake-word detector.
 - The current wake-word mechanism is a bootstrap dependency on an Android platform
   service, not the final app-owned local model.
 - No AI model inference or USB communication is implemented yet.
-- Microphone behavior still needs validation on a physical device.
+- Physical-device validation on a Redmi Note 10 Pro running Android 13 confirmed
+  partial and final “Kiko” detection after the diagnostic fix. Other recognizers
+  and device models remain unverified.
 
 ## Roadmap
 
@@ -46,4 +55,5 @@ around the word is accepted while substrings such as “kikongo” are rejected.
 - Background or always-on listening.
 - Cloud speech recognition or cloud AI.
 - USB device discovery or control.
-- Model download, inference, or conversation.
+- AI model download, inference, or conversation. The system speech service may
+  download its own Spanish recognition pack.

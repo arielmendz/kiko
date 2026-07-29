@@ -2,4 +2,5 @@
     <color name="kiko_background">#10131A</color>
     <color name="kiko_text">#F5F7FF</color>
     <color name="kiko_accent">#70E1B2</color>
+    <color name="kiko_muted">#A9B1C3</color>
 </resources>

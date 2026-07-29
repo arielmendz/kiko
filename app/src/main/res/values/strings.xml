@@ -4,4 +4,22 @@
     <string name="status_listening">Di «kiko»</string>
     <string name="status_detected">escuchando!</string>
     <string name="status_unavailable">El reconocimiento local no está disponible.</string>
+    <string name="status_checking_language">Comprobando español local…</string>
+    <string name="status_downloading_language">Preparando español local…</string>
+    <string name="status_language_unsupported">El español local no está disponible.</string>
+    <string name="status_recognition_error">No puedo escuchar ahora.</string>
+    <string name="detail_starting">Iniciando reconocimiento local…</string>
+    <string name="detail_local_only">El audio no se envía a la nube.</string>
+    <string name="detail_language_ready">Reconocimiento local · %1$s</string>
+    <string name="detail_language_pending">La descarga de %1$s está pendiente. Vuelve a abrir Kiko cuando termine.</string>
+    <string name="detail_language_download">Descargando %1$s. Vuelve a abrir Kiko cuando termine.</string>
+    <string name="detail_language_unsupported">Instala un paquete de español en Speech Services by Google.</string>
+    <string name="detail_install_language_manually">Instala español sin conexión desde los ajustes de reconocimiento de voz.</string>
+    <string name="detail_language_not_supported">El reconocedor no admite %1$s.</string>
+    <string name="detail_support_check_failed">No se pudo comprobar el idioma (código %1$d); intentando igualmente.</string>
+    <string name="detail_heard">Oí: «%1$s»</string>
+    <string name="detail_no_speech">No oí palabras · reintentando…</string>
+    <string name="detail_recognizer_busy">El micrófono está ocupado · reintentando…</string>
+    <string name="detail_permission_denied">Activa el permiso del micrófono en Ajustes.</string>
+    <string name="detail_error_code">Error del reconocimiento local: %1$d</string>
 </resources>
