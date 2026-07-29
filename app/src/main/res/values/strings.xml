@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Kiko</string>
+    <string name="status_permission">Necesito permiso para escuchar.</string>
+    <string name="status_listening">Di «kiko»</string>
+    <string name="status_detected">escuchando!</string>
+    <string name="status_unavailable">El reconocimiento local no está disponible.</string>
+</resources>
