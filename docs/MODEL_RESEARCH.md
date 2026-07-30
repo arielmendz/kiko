@@ -18,7 +18,8 @@ Spanish command distribution, or safety refusals.
 For an earlier single-model prototype that must both converse and call tools,
 **LFM2.5 1.2B Instruct** is the strongest practical baseline found in this
 research. It supports Spanish, function calling, GGUF and ONNX distributions, and
-is designed for sub-1 GB edge inference. Its LFM license must be reviewed before
+is designed for sub-1 GB edge inference. Its LFM license is compatible with the
+currently declared noncommercial project, but must be reviewed again before any
 commercial distribution. **Granite 4.0 H 1B** is the preferred Apache-2.0
 alternative.
 
@@ -54,16 +55,16 @@ model on devices that can afford it.
 | Candidate | Best role | Strengths | Blocking concern |
 | --- | --- | --- | --- |
 | FunctionGemma 270M, Kiko fine-tune | Default action router | Purpose-built function calling; official offline Android path; very small | Must be fine-tuned and evaluated for Kiko; Gemma terms; Spanish tool accuracy is not established by the stock checkpoint |
-| LFM2.5 1.2B Instruct | Single-model prototype | Spanish; general dialogue plus tool calls; GGUF/ONNX; publisher reports under 1 GB memory | Larger and less deterministic than a specialized router; LFM-1.0 commercial threshold |
+| LFM2.5 1.2B Instruct | Single-model prototype | Spanish; general dialogue plus tool calls; GGUF/ONNX; publisher reports under 1 GB memory | Larger and less deterministic than a specialized router; license must be re-reviewed if scope becomes commercial |
 | LFM2 1.2B Tool | Tool-focused GGUF baseline | Purpose-built non-thinking tool model; Spanish; single- and multi-turn; llama.cpp distribution | Uses the older LFM2 backbone; public card does not expose enough reproducible benchmark numbers |
 | Granite 4.0 H 1B | Permissive single-model alternative | Apache-2.0; Spanish; explicit tool schema; official GGUF | Q4_K_M is about 901 MB; lower published tool score than its larger competitors |
 | Granite 4.0 H 350M | Permissive tiny baseline | Apache-2.0; Spanish; function calling; Q4_K_M about 223 MB | Published BFCL v3 score is materially below the 1B variant; likely needs Kiko fine-tuning |
 | Qwen3 0.6B / 1.7B | General multilingual baseline | Apache-2.0; Hermes-style tool template; broad runtime support | Generalist rather than action-specialized; Qwen3 1.7B is weak on BFCL v4 agentic and multi-turn sections |
-| Hammer 2.1 0.5B / 1.5B | Research baseline only | Tool-specialized; multi-step and multi-turn; integrated with Google AI Edge | CC-BY-NC-4.0 prevents it from being the default for an unrestricted product |
+| Hammer 2.1 0.5B / 1.5B | Noncommercial research baseline | Tool-specialized; multi-step and multi-turn; integrated with Google AI Edge | Eligible for this noncommercial project, but requires attribution and would block a later commercial scope without relicensing |
 | Current Gemma 3 1B, Bonsai 1.7B, LFM2.5 350M | Conversation/compatibility experiments | Already present in the download catalog | They were not selected or tuned as Kiko's physical-action router |
 
 The benchmark versions and task distributions differ, so scores from separate
-model cards must not be treated as a single ranking. Kiko's own bilingual,
+model cards must not be treated as a single ranking. Kiko's own Spanish,
 hardware-specific evaluation is the deciding test.
 
 ## Camera and sensor strategy
@@ -121,8 +122,8 @@ availability so stale or absent data is not mistaken for current truth.
 
 ## Kiko evaluation gate
 
-Create a versioned, bilingual Spanish/English suite before fine-tuning. It should
-contain:
+Create a versioned, Spanish-first suite before fine-tuning. English commands are
+outside the initial acceptance criteria. The suite should contain:
 
 - direct, indirect, ambiguous, and incomplete commands;
 - correct no-tool responses and irrelevant-tool traps;
@@ -133,6 +134,10 @@ contain:
 - paraphrases from actual on-device speech recognition; and
 - recorded expected tool name, exact typed arguments, confirmation requirement,
   and final response.
+
+It must cover every command in `docs/COMMANDS.md`, including Spanish number words,
+face unknown/enrollment/deletion, fact clarification and forgetting, offline
+knowledge uncertainty, and deterministic emergency stop.
 
 Measure schema validity, correct tool selection, exact arguments, unsafe proposal
 rate, false tool activation, multi-turn completion, latency, peak RSS, battery
@@ -165,4 +170,3 @@ license, format, parser, runtime, and on-device results are known.
 - [Gemma 3n overview](https://ai.google.dev/gemma/docs/gemma-3n)
 - [Android sensor framework](https://developer.android.com/develop/sensors-and-location/sensors/sensors_overview)
 - [Android USB host overview](https://developer.android.com/develop/connectivity/usb/host)
-

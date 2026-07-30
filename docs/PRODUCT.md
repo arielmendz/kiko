@@ -2,9 +2,31 @@
 
 ## Vision
 
-Kiko is the mind of a physical companion: an Android application that runs a local
-AI model and connects to a body through USB. The completed product must not depend
-on cloud inference for its core intelligence.
+Kiko is the mind of a physical companion toy: an Android application that runs
+local AI models, observes phone sensors, remembers user-provided facts and
+enrolled faces, and connects to a body through USB. The completed product
+interacts in Spanish and must not depend on cloud inference for its core
+intelligence.
+
+Kiko is a personal, noncommercial project. A future decision to distribute it
+commercially requires a new review of every model, dataset, dependency, privacy
+assumption, and physical-safety requirement.
+
+## Target toy experience
+
+After hearing “kiko”, the completed toy supports these Spanish behaviors:
+
+1. move an exact, safe number of steps;
+2. perform a pre-tested dance;
+3. answer “¿qué sabes de X?” from a local model and relevant local memories;
+4. describe a current camera frame for “¿qué ves?”;
+5. identify explicitly enrolled people for “¿a quién ves?”;
+6. remember an explicit fact or confirmed textual scene observation for later; and
+7. enroll, retrieve, and forget local face, fact, and observation memories.
+
+The detailed language, clarification, retention, and action contract is in
+`docs/COMMANDS.md`. English commands and open-ended third-party automation are
+outside the initial product scope.
 
 ## Delivered milestone: wake-word screen
 
@@ -67,15 +89,19 @@ This phase downloads models but deliberately does not load or execute them.
 3. **Embodied tool contract:** define typed read-only sensor tools and
    state-changing body tools, plus native validation, confirmation, deadlines,
    and emergency-stop behavior.
-4. **App-owned audio pipeline:** replace the platform recognizer with deterministic
+4. **Spanish command core:** implement deterministic stop, step-count, dance, and
+   clarification parsing plus local Spanish responses.
+5. **App-owned audio pipeline:** replace the platform recognizer with deterministic
    streaming audio capture and a bundled wake-word model.
-5. **Local action router:** benchmark and run a Kiko-specific FunctionGemma 270M
+6. **Local action router:** benchmark and run a Kiko-specific FunctionGemma 270M
    fine-tune and larger tool-capable baselines on supported Android hardware.
-6. **USB body link:** define a versioned command/telemetry protocol and communicate
+7. **USB body link:** define a versioned command/telemetry protocol and communicate
    through Android USB host APIs.
-7. **Optional local vision:** expose camera observations through a replaceable
-   vision engine without sending images to a cloud service.
-8. **Embodied loop:** connect wake word, local inference, safety policy, physical
+8. **Local memory:** store confirmed facts and explicitly enrolled face embeddings
+   with inspect, forget, and erase-all controls.
+9. **Local vision:** describe explicit still captures and recognize only locally
+   enrolled faces without sending images to a cloud service.
+10. **Embodied loop:** connect wake word, local inference, safety policy, physical
    actions, telemetry, and recovery into an offline-first experience.
 
 The current model recommendation and alternatives are recorded in

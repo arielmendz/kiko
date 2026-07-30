@@ -96,22 +96,42 @@ then supplies a read token. The token is encrypted at rest with Android Keystore
 is passed only as an authorization header to Android's download manager, and is
 never logged. Other catalog artifacts are public and require no credential.
 
-## Intended boundaries
+## Intended toy architecture
 
 Future work should retain replaceable boundaries even if the concrete classes
 change:
 
 ```text
-AudioSource -> WakeWordDetector -> ActionRouter -> ToolCallParser -> ActionPolicy
-                                                                     |
-                                                               ToolRegistry
-                                                        /            |          \
-                                                SensorAdapters  VisionEngine  UsbBodyTransport
-                                                                         BodyTelemetry -> |
+AudioSource -> WakeWordDetector -> SpanishCommandSession
+                                      |
+                     +----------------+----------------+
+                     |                                 |
+          DeterministicCommandParser              ActionRouter
+                     |                                 |
+                     +----------> ToolCallParser <-----+
+                                      |
+                                ActionPolicy
+                                      |
+                                 ToolRegistry
+             +-------------------+----+--------------------+
+             |                   |                         |
+       MemoryStore        PerceptionCoordinator      UsbBodyTransport
+        /      \             /            \                  |
+ FactMemory  FaceRegistry  SensorAdapters  VisionEngine  BodyTelemetry
+
+EmergencyStopController --------------------------------> UsbBodyTransport
 ```
 
 - `AudioSource` owns microphone frames and buffering.
 - `WakeWordDetector` consumes audio locally and emits activation events.
+- `SpanishCommandSession` owns the bounded interaction after the wake word and
+  guarantees Spanish clarifications, status, and responses.
+- `DeterministicCommandParser` has priority for emergency stop, unambiguous step
+  counts, allowlisted dance requests, and explicit deletion. These commands do not
+  wait for generative inference.
+- `EmergencyStopController` receives the native “para”/“detente” grammar and
+  on-screen stop control. It sends `STOP` without waiting for the action router,
+  memory, vision, or conversational pipeline.
 - `ActionRouter` owns model loading, typed tool proposals, token generation, and
   device resource limits. The leading research candidate is a Kiko-specific
   FunctionGemma 270M fine-tune, but the boundary must remain model-independent.
@@ -122,10 +142,21 @@ AudioSource -> WakeWordDetector -> ActionRouter -> ToolCallParser -> ActionPolic
   deadlines and emergency-stop behavior.
 - `ToolRegistry` exposes only tools implemented and currently available on the
   device.
+- `MemoryStore` separates confirmed durable facts from ephemeral conversation
+  history. It supports inspection, targeted deletion, and erase-all.
+- `MemoryCandidateResolver` may select one explicit memory candidate from the
+  current command session and requires a Spanish read-back confirmation before
+  persistence. It never promotes conversation automatically.
+- `FaceRegistry` stores names and encrypted face embeddings from explicit
+  enrollments. It does not retain source photos by default and never exposes raw
+  embeddings to a language model.
+- `PerceptionCoordinator` turns an explicit perception request into a bounded
+  sensor sample, still-camera capture, or face-recognition operation.
 - `SensorAdapters` use native Android APIs and summarize timestamped sensor
   readings; raw high-rate streams do not enter the language model context.
 - `VisionEngine` optionally converts a camera frame into a compact structured
-  observation. It is replaceable and separate from the action router.
+  Spanish observation. Identity comes from a dedicated local face detector and
+  embedding matcher, not from the vision-language model.
 - `UsbBodyTransport` owns discovery, permissions, framing, version negotiation,
   reconnects, and telemetry.
 
@@ -133,6 +164,71 @@ The model never owns Android permissions and never writes directly to a sensor,
 camera, location, or USB API. No UI class should eventually contain model
 inference, sensor acquisition, safety policy, or USB protocol logic. The research
 and benchmark gate are detailed in `docs/MODEL_RESEARCH.md`.
+
+## Command routing
+
+The initial command set is deliberately narrow and versioned in
+`docs/COMMANDS.md`.
+
+- Native deterministic parsing always owns “para” and “detente”.
+- Exact step and dance requests take the deterministic path when possible.
+- The action model handles paraphrases and selects knowledge, perception, face,
+  and memory tools.
+- The conversational model answers local knowledge questions after retrieving
+  relevant confirmed memories.
+- The vision model receives a still frame only after “¿qué ves?” or another
+  explicit camera request.
+- The face matcher receives a still frame only for explicit enrollment or
+  “¿a quién ves?” and returns `unknown` below its configured threshold.
+
+A local response composer converts native results and model text into Spanish
+screen output and, when installed, offline Spanish speech synthesis. Kiko reports
+an action as complete only after the native tool returns an acknowledgement.
+
+## Memory and privacy
+
+Durable memory is opt-in per command. `remember_fact` stores supplied content;
+`remember_observation` stores only a confirmed textual scene description. A bare
+“recuerda esto” may resolve only one unambiguous candidate from the current
+command session and must read it back before saving. Ordinary conversation remains
+ephemeral. The first implementation should prefer structured SQLite records and
+local full-text search over introducing another embedding model.
+
+Face recognition stores an encrypted identity record and one or more face
+embeddings after explicit naming and an on-screen owner confirmation while the
+phone is unlocked. Camera frames used for scene description or matching are
+discarded by default. Facts, names, embeddings, and later indexes remain local,
+use keys protected by Android Keystore, and are removed through targeted forget
+commands, erase-all, or app uninstall.
+
+Face matches are presentation-only hints, never authentication. They cannot
+authorize body actions, disclose private memories, or enter owner settings.
+Owner-only operations such as face enrollment, identity deletion, and erase-all
+must not depend on a voice or face match alone.
+
+Noncommercial use does not weaken these privacy boundaries. It only changes which
+model licenses are eligible for evaluation.
+
+## Toy body protocol
+
+The first physical protocol should expose semantic commands rather than raw motor
+power:
+
+```text
+GET_CAPABILITIES
+MOVE_STEPS(count, commandId, deadline)
+DANCE(routineId, commandId, deadline)
+STOP(commandId)
+GET_TELEMETRY
+```
+
+`GET_CAPABILITIES` supplies limits such as `maxStepsPerCommand`, available dance
+routines, protocol version, and stop support. `ActionPolicy` rejects or asks for
+clarification instead of inventing absent capabilities. Dances are fixed,
+body-tested macros. Disconnect, deadline expiry, invalid telemetry, application
+lifecycle loss, or emergency stop terminates motion. The body firmware should
+also enforce its own command deadline and watchdog so Android process failure
+cannot leave a motor running.
 
 ## Verification strategy
 

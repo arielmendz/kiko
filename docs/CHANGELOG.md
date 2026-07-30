@@ -21,3 +21,6 @@
 - Document the embodied tool architecture, physical-action safety boundary, model
   comparison, and recommendation to benchmark a Kiko-specific FunctionGemma 270M
   action router.
+- Define Kiko as a Spanish-speaking noncommercial toy with bounded steps and dance
+  commands, local knowledge and scene answers, explicit fact memory, and
+  explicitly enrolled local face recognition.

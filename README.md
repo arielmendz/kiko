@@ -1,8 +1,9 @@
 # Kiko
 
-Kiko is an Android application for a local, embodied AI. Its final objective is to
-run an AI model entirely on the Android device and connect that intelligence to a
-physical body over USB.
+Kiko is an Android application for a local, embodied AI toy. Its final objective
+is to run its intelligence entirely on the Android device, interact in Spanish,
+use local camera/sensor/memory tools, and connect to a physical body over USB. It
+is a personal, noncommercial project.
 
 Kiko currently listens with Android's on-device speech recognizer and displays
 **“escuchando!”** whenever it hears the wake word **“kiko”**. It also provides a
@@ -77,6 +78,8 @@ From a configured command line:
   requirements.
 - `docs/MODEL_RESEARCH.md` evaluates local tool-calling and vision models for
   sensors and the USB-connected body.
+- `docs/COMMANDS.md` defines the Spanish command, memory, face-recognition, and
+  toy-safety contract.
 - `docs/PRODUCT.md` defines the product goal, current milestone, and roadmap.
 - `docs/ARCHITECTURE.md` records the present design and intended architectural
   boundaries.

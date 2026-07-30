@@ -8,9 +8,11 @@ as part of the product, not as optional commentary.
 Kiko's final objective is an Android application that:
 
 1. runs its AI model locally on the Android device;
-2. continues to function without a cloud inference dependency; and
-3. observes device sensors through typed tools; and
-4. connects to and controls a physical body over USB through a native safety
+2. continues to function without a cloud inference dependency;
+3. behaves as a personal, noncommercial physical toy that interacts in Spanish;
+4. remembers explicitly supplied facts and explicitly enrolled faces locally;
+5. observes device sensors through typed tools; and
+6. connects to and controls a physical body over USB through a native safety
    boundary.
 
 The current milestones are:
@@ -70,6 +72,15 @@ architecture.
   repeatable device test exists.
 - Preserve Spanish user-facing copy unless a product change explicitly introduces
   localization.
+- Durable fact or face memory must be explicit, inspectable, locally erasable, and
+  encrypted at rest. Do not retain camera frames by default or use a language
+  model to guess identity.
+- Face matches are toy responses, never authentication. Enrollment, identity
+  deletion, and erase-all require an unlocked on-screen owner control; face output
+  must not authorize actions or disclose private memory.
+- Treat the declared noncommercial scope as a license constraint. Any commercial
+  scope change requires a new review of models, datasets, dependencies, privacy,
+  and physical-safety assumptions.
 - Keep `CLAUDE.md` as a pointer to this file so Claude-based maintainers follow the
   same source of truth.
 
