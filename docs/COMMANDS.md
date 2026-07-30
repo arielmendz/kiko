@@ -4,6 +4,9 @@ Kiko is a noncommercial physical toy whose spoken interaction is in Spanish. The
 initial product does not expose a general automation platform. It recognizes a
 small, versioned set of toy behaviors and answers in Spanish.
 
+The complete Mermaid sequence diagrams for these behaviors are in
+`docs/FLOWS.md`.
+
 ## Interaction contract
 
 A normal interaction begins with the wake word and one Spanish request:

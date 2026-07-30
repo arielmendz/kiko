@@ -80,6 +80,8 @@ From a configured command line:
   sensors and the USB-connected body.
 - `docs/COMMANDS.md` defines the Spanish command, memory, face-recognition, and
   toy-safety contract.
+- `docs/FLOWS.md` contains Mermaid architecture sequences for each supported toy
+  behavior and its failure paths.
 - `docs/PRODUCT.md` defines the product goal, current milestone, and roadmap.
 - `docs/ARCHITECTURE.md` records the present design and intended architectural
   boundaries.

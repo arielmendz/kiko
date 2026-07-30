@@ -24,3 +24,5 @@
 - Define Kiko as a Spanish-speaking noncommercial toy with bounded steps and dance
   commands, local knowledge and scene answers, explicit fact memory, and
   explicitly enrolled local face recognition.
+- Add Mermaid component, lifecycle, command, memory, perception, body-control, and
+  failure-containment diagrams for the intended architecture.

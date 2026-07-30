@@ -26,12 +26,12 @@ Model-management components:
 
 Data flows in one direction:
 
-```text
-microphone
-  -> device on-device SpeechRecognizer
-  -> partial/final text hypotheses
-  -> WakeWordMatcher
-  -> MainActivity screen state
+```mermaid
+flowchart LR
+    Microphone["Micrófono"] --> Recognizer["SpeechRecognizer local del dispositivo"]
+    Recognizer --> Hypotheses["Hipótesis parciales y finales"]
+    Hypotheses --> Matcher["WakeWordMatcher"]
+    Matcher --> Screen["Estado de MainActivity"]
 ```
 
 The activity creates the recognizer after permission is granted and requires the
@@ -71,14 +71,15 @@ operation requires the planned app-owned streaming wake-word detector.
 
 ## Model download flow
 
-```text
-ModelCatalog
-  -> explicit user download action
-  -> Android DownloadManager
-  -> app-specific external models/<filename>.part
-  -> exact size + SHA-256 verification
-  -> rename to models/<filename>.gguf
-  -> download-only ready state
+```mermaid
+flowchart LR
+    Catalog["ModelCatalog"] --> Action["Descarga explícita del usuario"]
+    Action --> Manager["Android DownloadManager"]
+    Manager --> Partial["models/&lt;archivo&gt;.part"]
+    Partial --> Verify{"Tamaño y SHA-256<br/>exactos"}
+    Verify -- "Sí" --> Final["models/&lt;archivo&gt;.gguf"]
+    Final --> Ready["Descargado y verificado"]
+    Verify -- "No" --> Delete["Eliminar parcial<br/>y mostrar error"]
 ```
 
 Transfers continue under the system download manager when the model screen is not
@@ -101,25 +102,35 @@ never logged. Other catalog artifacts are public and require no credential.
 Future work should retain replaceable boundaries even if the concrete classes
 change:
 
-```text
-AudioSource -> WakeWordDetector -> SpanishCommandSession
-                                      |
-                     +----------------+----------------+
-                     |                                 |
-          DeterministicCommandParser              ActionRouter
-                     |                                 |
-                     +----------> ToolCallParser <-----+
-                                      |
-                                ActionPolicy
-                                      |
-                                 ToolRegistry
-             +-------------------+----+--------------------+
-             |                   |                         |
-       MemoryStore        PerceptionCoordinator      UsbBodyTransport
-        /      \             /            \                  |
- FactMemory  FaceRegistry  SensorAdapters  VisionEngine  BodyTelemetry
+```mermaid
+flowchart TD
+    Audio["AudioSource"] --> Wake["WakeWordDetector"]
+    Wake --> Session["SpanishCommandSession"]
 
-EmergencyStopController --------------------------------> UsbBodyTransport
+    Session --> Deterministic["DeterministicCommandParser"]
+    Session --> Router["ActionRouter local"]
+    Deterministic --> Calls["ToolCallParser"]
+    Router --> Calls
+    Calls --> Policy["ActionPolicy"]
+    Policy --> Registry["ToolRegistry"]
+
+    Registry --> Memory["MemoryStore"]
+    Registry --> Perception["PerceptionCoordinator"]
+    Registry --> USB["UsbBodyTransport"]
+
+    Memory --> Facts["Fact / Observation Memory"]
+    Memory --> Faces["FaceRegistry cifrado"]
+    Perception --> Sensors["SensorAdapters"]
+    Perception --> Vision["VisionEngine local"]
+    USB <--> Body["Cuerpo + BodyTelemetry"]
+
+    Memory --> Reply["ResponseComposer español"]
+    Perception --> Reply
+    USB --> Reply
+    Reply --> Screen["Pantalla"]
+    Reply --> Speech["Voz española local opcional"]
+
+    Stop["EmergencyStopController"] ==>|"STOP inmediato"| USB
 ```
 
 - `AudioSource` owns microphone frames and buffering.
@@ -163,7 +174,8 @@ EmergencyStopController --------------------------------> UsbBodyTransport
 The model never owns Android permissions and never writes directly to a sensor,
 camera, location, or USB API. No UI class should eventually contain model
 inference, sensor acquisition, safety policy, or USB protocol logic. The research
-and benchmark gate are detailed in `docs/MODEL_RESEARCH.md`.
+and benchmark gate are detailed in `docs/MODEL_RESEARCH.md`. End-to-end Mermaid
+sequences for each command family are in `docs/FLOWS.md`.
 
 ## Command routing
 
@@ -214,12 +226,19 @@ model licenses are eligible for evaluation.
 The first physical protocol should expose semantic commands rather than raw motor
 power:
 
-```text
-GET_CAPABILITIES
-MOVE_STEPS(count, commandId, deadline)
-DANCE(routineId, commandId, deadline)
-STOP(commandId)
-GET_TELEMETRY
+```mermaid
+flowchart LR
+    App["ActionPolicy"] --> Capabilities["GET_CAPABILITIES"]
+    App --> Steps["MOVE_STEPS<br/>count, commandId, deadline"]
+    App --> Dance["DANCE<br/>routineId, commandId, deadline"]
+    Stop["EmergencyStopController"] --> StopCommand["STOP<br/>commandId"]
+    Body["Firmware"] --> Telemetry["GET_TELEMETRY / eventos"]
+
+    Capabilities --> Transport["UsbBodyTransport"]
+    Steps --> Transport
+    Dance --> Transport
+    StopCommand --> Transport
+    Transport <--> Body
 ```
 
 `GET_CAPABILITIES` supplies limits such as `maxStepsPerCommand`, available dance
