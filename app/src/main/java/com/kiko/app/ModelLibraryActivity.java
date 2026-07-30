@@ -157,7 +157,12 @@ public final class ModelLibraryActivity extends Activity {
 
         String metadata = getString(
                 R.string.model_metadata,
-                model.getParameters(),
+                model.getPurpose() == ModelPurpose.LANGUAGE
+                        ? getString(
+                                R.string.model_language_parameters,
+                                model.getParameters()
+                        )
+                        : model.getParameters(),
                 model.getQuantization(),
                 Formatter.formatShortFileSize(this, model.getByteSize()),
                 model.getLicense()

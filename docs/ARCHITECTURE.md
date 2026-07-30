@@ -2,8 +2,8 @@
 
 ## Current design
 
-The application is one Android app module with wake-word and model-management
-areas.
+The application is one Android app module with wake-word, scene-perception, and
+model-management areas.
 
 Wake-word components:
 
@@ -14,10 +14,28 @@ Wake-word components:
 - `SpeechLanguageSelector` is a platform-independent function that prefers
   `es-US` and falls back to another Spanish model reported by the device.
 
+Scene-perception components:
+
+- `SpanishCommandMatcher` deterministically recognizes the bounded “¿qué ves?”
+  grammar.
+- `FrontCameraCapture` binds a CameraX one-shot capture to the activity lifecycle,
+  selects only the front camera, returns an in-memory bitmap, and unbinds the
+  camera immediately.
+- `LocalVisionEngine` runs the verified EfficientDet-Lite0 v1 artifact through the
+  LiteRT 2.1.5 CPU interpreter off the UI thread, validates the expected tensor
+  contract, emits thresholded COCO labels, and recycles every bitmap.
+- `CocoDetectionParser` maps the pinned model's sparse COCO category indices and
+  filters low-confidence or invalid results in platform-independent code.
+- `SpanishSceneDescription` translates, counts, and limits those structured
+  labels into a short Spanish sentence. It does not accept free-form model output.
+- `OfflineSpanishSpeaker` selects an installed Spanish `Voice` only when Android
+  reports that it does not require a network connection. Lower pitch and speech
+  rate provide the current simple robotic effect.
+
 Model-management components:
 
-- `ModelCatalog` defines immutable upstream GGUF artifacts, expected sizes,
-  SHA-256 hashes, licenses, and gating requirements.
+- `ModelCatalog` defines immutable upstream GGUF and TFLite artifacts, their
+  purposes, expected sizes, SHA-256 hashes, licenses, and gating requirements.
 - `ModelLibraryActivity` renders catalog state and handles explicit user actions.
 - `ModelDownloadStore` delegates durable transfer to Android `DownloadManager`,
   persists download identifiers, reports progress, and finalizes verified files.
@@ -48,13 +66,37 @@ for diagnosis. Silence/no-match errors restart after a delay; busy errors use a
 longer delay. Language, permission, and unexpected errors stop the blind retry
 loop and display an actionable state.
 
+The first perception data flow is also one-way and bounded:
+
+```mermaid
+flowchart LR
+    Command["“Kiko, ¿qué ves?”"] --> Matcher["SpanishCommandMatcher"]
+    Matcher --> Permission["Permiso CAMERA explícito"]
+    Permission --> Camera["FrontCameraCapture"]
+    Camera --> Frame["Bitmap solo en memoria"]
+    Model["EfficientDet-Lite0<br/>descargado y verificado"] --> Vision["LocalVisionEngine + LiteRT CPU"]
+    Frame --> Vision
+    Vision --> Description["SpanishSceneDescription"]
+    Description --> Screen["Pantalla"]
+    Description --> Voice["TTS español sin red"]
+    Vision --> Discard["Reciclar bitmap"]
+```
+
+The wake word opens a ten-second command window. Starting perception cancels the
+speech recognizer so Kiko cannot hear its own TTS. Leaving the activity cancels
+camera and voice work. Permission denial, missing front camera, capture failure,
+analysis failure, a missing/unverified vision model, or missing offline voice
+produces a visible Spanish result without a cloud fallback. Model absence never
+selects the old heuristic path, and a known-missing model is rejected before the
+camera opens.
+
 ## Platform and security choices
 
 - Minimum Android version: Android 12 (API 31), where
   `createOnDeviceSpeechRecognizer` is available.
 - Compile/target SDK: 37.
-- Permissions: `RECORD_AUDIO` for the wake word and `INTERNET` for explicit model
-  artifact downloads.
+- Permissions: `RECORD_AUDIO` for the wake word, `CAMERA` for an explicit
+  “¿qué ves?” capture, and `INTERNET` for explicit model artifact downloads.
 - Bluetooth permissions are intentionally absent until Android body discovery and
   control are implemented.
 - Network activity is forbidden for recognition, prompts, inference, analytics,
@@ -66,6 +108,14 @@ loop and display an actionable state.
 On-device recognition availability is device-dependent. The app reports an
 unavailable state instead of falling back to a recognizer that might send audio to
 a server. This preserves the local-first invariant.
+
+CameraX is a local camera abstraction, not a network service. Vision uses the
+Apache-2.0 LiteRT interpreter API directly, with CPU/XNNPACK only; it does not use
+ML Kit, MediaPipe Tasks, a cloud API, or an SDK telemetry layer. The LiteRT AAR's
+optional AI-pack foreground-service permissions and unused WorkManager wake,
+network-state, and boot permissions are explicitly removed during manifest merge.
+Platform TTS remains a temporary dependency. No current scene frame, crop,
+embedding, or label is written to storage, and the `person` class is not identity.
 
 Android's `SpeechRecognizer` remains an utterance-oriented bootstrap dependency,
 so microphone sessions can visibly cycle during silence. Reliable continuous
@@ -79,8 +129,8 @@ flowchart LR
     Action --> Manager["Android DownloadManager"]
     Manager --> Partial["models/&lt;archivo&gt;.part"]
     Partial --> Verify{"Tamaño y SHA-256<br/>exactos"}
-    Verify -- "Sí" --> Final["models/&lt;archivo&gt;.gguf"]
-    Final --> Ready["Descargado y verificado"]
+    Verify -- "Sí" --> Final["models/&lt;archivo final&gt;"]
+    Final --> Ready["Descargado y verificado<br/>.gguf o .tflite"]
     Verify -- "No" --> Delete["Eliminar parcial<br/>y mostrar error"]
 ```
 
@@ -89,10 +139,10 @@ visible. Kiko polls persisted download IDs while the screen is active. Canceling
 removes the system transfer and partial file. Deleting removes the verified file.
 Uninstalling Kiko removes the app-specific model directory.
 
-Catalog URLs include immutable Hugging Face repository revisions instead of
-`main`. The expected file sizes and SHA-256 hashes are recorded in code and
-`docs/MODELS.md`. A download is never promoted from `.part` to `.gguf` unless both
-checks pass.
+Catalog URLs use immutable Hugging Face commit revisions or the versioned
+TensorFlow Hub EfficientDet path. Expected file sizes and SHA-256 hashes are
+recorded in code and `docs/MODELS.md`. A download is never promoted from `.part`
+to its final `.gguf` or `.tflite` filename unless both checks pass.
 
 Gemma is a special authenticated path: the user accepts its license externally,
 then supplies a read token. The token is encrypted at rest with Android Keystore,
@@ -169,9 +219,12 @@ flowchart TD
   sensor sample, still-camera capture, or face-recognition operation.
 - `SensorAdapters` use native Android APIs and summarize timestamped sensor
   readings; raw high-rate streams do not enter the language model context.
-- `VisionEngine` optionally converts a camera frame into a compact structured
-  Spanish observation. Identity comes from a dedicated local face detector and
-  embedding matcher, not from the vision-language model.
+- The current `LocalVisionEngine` converts a camera frame into thresholded
+  EfficientDet-Lite0 COCO object labels. A future replacement may produce a richer
+  compact structured Spanish observation, but must remain app-owned, local, and
+  free of SDK telemetry. Identity comes from a separate future face detector and
+  embedding matcher, not from the `person` object class or a vision-language
+  model.
 - `BodyBleTransport` is the future Android BLE-central boundary. It owns discovery,
   bonding, GATT connection state, MTU negotiation, protocol version negotiation,
   heartbeats, reconnects, and event indications.
@@ -200,8 +253,8 @@ The initial command set is deliberately narrow and versioned in
   and memory tools.
 - The conversational model answers local knowledge questions after retrieving
   relevant confirmed memories.
-- The vision model receives a still frame only after “¿qué ves?” or another
-  explicit camera request.
+- The current local object detector receives a still frame only after “¿qué ves?”.
+  Any future vision model must preserve that explicit gating.
 - The face matcher receives a still frame only for explicit enrollment or
   “¿a quién ves?” and returns `unknown` below its configured threshold.
 
@@ -290,18 +343,22 @@ defaults until the selected hardware is documented and calibrated.
 ## Verification strategy
 
 - Plain JVM unit tests cover normalization and wake-word boundaries.
+- Plain JVM unit tests cover the “¿qué ves?” grammar and deterministic Spanish
+  response composition.
 - Standard-library Python unit tests cover strict body-protocol parsing, bounded
   two-servo trajectories, native capability limits, idempotent command IDs,
   deadline rejection, heartbeat watchdog, completion, and emergency stop.
-- Catalog tests require four unique entries with immutable revisions, known sizes,
-  `.gguf` filenames, and SHA-256 hashes.
+- Catalog tests require five unique entries with immutable revisions, known sizes,
+  purpose-appropriate filenames, and SHA-256 hashes, including the reviewed
+  EfficientDet-Lite0 pin.
 - Android build and lint validate manifest/API integration when an SDK is present.
 - A Redmi Note 10 Pro on Android 13 has produced `ki`, `kik`, and `Kiko` partial
   hypotheses plus `Kiko`/`Quico` final alternatives, confirming the current
   end-to-end wake-word path.
 - A repeatable device test is still required before microphone behavior can be
-  treated as regression-tested; Android BLE, BlueZ, GPIO, and physical-servo
-  integration remain untested.
+  treated as regression-tested. Front-camera capture, LiteRT object-detection
+  results/performance, and offline TTS also require physical-device validation;
+  Android BLE, BlueZ, GPIO, and physical-servo integration remain untested.
 - Download endpoint probes validate the GGUF magic bytes for all public catalog
   artifacts. Full transfer, cancellation, resumption, and checksum verification
   still require physical-device validation.

@@ -23,7 +23,12 @@ The current milestones are:
 3. the repository contains a transport-independent Raspberry Pi body safety core
    and simulator, but no Android BLE, BlueZ, GPIO, or physical-servo integration;
    and
-4. no language-model inference runs yet.
+4. after “kiko”, “¿qué ves?” captures one ephemeral front-camera still and
+   runs a downloaded, SHA-verified EfficientDet-Lite0 artifact locally through
+   LiteRT, then reports bounded COCO object detections through Spanish screen text
+   and an offline-only voice; and
+5. no language-model or vision-language-model inference runs yet; local
+   object-detection inference does.
 
 Do not silently weaken the local-first or BLE-body goals. Temporary platform
 dependencies must be identified as such in `README.md`, `docs/PRODUCT.md`, and

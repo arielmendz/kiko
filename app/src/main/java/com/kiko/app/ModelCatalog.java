@@ -5,6 +5,8 @@ import java.util.Collections;
 import java.util.List;
 
 public final class ModelCatalog {
+    public static final String VISION_MODEL_ID = "efficientdet-lite0";
+
     private static final List<ModelSpec> MODELS = Collections.unmodifiableList(
             Arrays.asList(
                     new ModelSpec(
@@ -62,6 +64,22 @@ public final class ModelCatalog {
                             "LFM-1.0",
                             false,
                             "Modelo compacto de Liquid AI diseñado para ejecución en el dispositivo."
+                    ),
+                    ModelSpec.directArtifact(
+                            VISION_MODEL_ID,
+                            "EfficientDet-Lite0",
+                            "80 clases",
+                            "uint8",
+                            "TensorFlow Hub",
+                            "1",
+                            "efficientdet-lite0-v1.tflite",
+                            4_563_519L,
+                            "2e04c53bfeac0ac2a30c057c7e2a777594ce39baaac35a92f74fb1e8c4fc4e0b",
+                            "Apache-2.0",
+                            "Detector local de objetos usado por «¿qué ves?».",
+                            ModelPurpose.VISION,
+                            "https://tfhub.dev/tensorflow/lite-model/efficientdet/lite0/detection/metadata/1",
+                            "https://tfhub.dev/tensorflow/lite-model/efficientdet/lite0/detection/metadata/1?lite-format=tflite"
                     )
             )
     );

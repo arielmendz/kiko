@@ -29,3 +29,10 @@
 - Select BLE instead of USB for the body link and bootstrap monorepo boundaries
   for the shared GATT protocol, Raspberry Pi safety service, two-servo simulator,
   hardware documentation, and integration tests.
+- Add the first local “¿qué ves?” loop: a bounded post-wake command, explicit
+  one-shot front-camera permission/capture, downloaded EfficientDet-Lite0
+  inference through LiteRT, Spanish object descriptions, and offline-only robotic
+  TTS.
+- Pin and verify the versioned EfficientDet-Lite0 artifact in the model library;
+  discard every scene frame after inference and add no face enrollment, identity,
+  camera persistence, cloud vision, heuristic fallback, or SDK analytics.

@@ -88,9 +88,20 @@ admits uncertainty instead of inventing current facts.
 ### Scene description
 
 `describe_scene` activates the camera only after the explicit command, captures a
-bounded still frame, passes it to `VisionEngine`, and releases the camera. Frames
-are not retained by default. The response describes visible content in Spanish
-and does not infer a person's identity.
+bounded still frame, passes it to the current `LocalVisionEngine`, and releases
+the camera. Frames are not retained by default. The response describes only the
+supported visible properties in Spanish and does not infer a person's identity.
+
+The delivered first iteration recognizes “¿qué ves?” deterministically in the
+same utterance as “Kiko” or during a ten-second post-wake window. It uses the front
+camera and the pinned EfficientDet-Lite0 model to report up to three COCO object
+types. “Una persona” means only that the object detector emitted the `person`
+class; it is not a name, identity, enrollment, or authentication result. Free-form
+scene and activity captions remain future work.
+
+The answer is always displayed. It is spoken only through an installed Spanish
+TTS voice that Android marks as not requiring a network connection. The current
+low-pitch, reduced-rate profile is intentionally simple and robotic.
 
 ### Face identity
 

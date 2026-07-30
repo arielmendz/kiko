@@ -2,7 +2,6 @@ package com.kiko.app;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
-import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
@@ -22,25 +21,35 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import androidx.activity.ComponentActivity;
+
 import java.util.ArrayList;
 
-public final class MainActivity extends Activity implements RecognitionListener {
+public final class MainActivity extends ComponentActivity implements RecognitionListener {
     private static final String TAG = "KikoSpeech";
     private static final int MICROPHONE_PERMISSION_REQUEST = 100;
+    private static final int CAMERA_PERMISSION_REQUEST = 101;
     private static final long NORMAL_RESTART_DELAY_MS = 1_000L;
     private static final long BUSY_RESTART_DELAY_MS = 2_000L;
+    private static final long COMMAND_WINDOW_MS = 10_000L;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable restartListening = this::startListening;
+    private final Runnable expireCommandWindow = this::expireCommandWindow;
 
     private TextView statusView;
     private TextView detailView;
     private SpeechRecognizer speechRecognizer;
     private Intent recognizerIntent;
+    private FrontCameraCapture frontCameraCapture;
+    private LocalVisionEngine localVisionEngine;
+    private OfflineSpanishSpeaker offlineSpanishSpeaker;
     private String recognitionLanguage = SpeechLanguageSelector.PREFERRED_SPANISH;
     private boolean activityStarted;
     private boolean listening;
     private boolean wakeWordDetected;
+    private boolean sceneRequestInProgress;
+    private boolean cameraPermissionPending;
     private boolean supportCheckInProgress;
     private boolean modelDownloadRequested;
 
@@ -49,6 +58,9 @@ public final class MainActivity extends Activity implements RecognitionListener 
         super.onCreate(savedInstanceState);
         setContentView(createContentView());
 
+        frontCameraCapture = new FrontCameraCapture(this);
+        localVisionEngine = new LocalVisionEngine(this);
+        offlineSpanishSpeaker = new OfflineSpanishSpeaker(this);
         recognizerIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
                 .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
                         RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -69,8 +81,13 @@ public final class MainActivity extends Activity implements RecognitionListener 
     protected void onStop() {
         activityStarted = false;
         handler.removeCallbacks(restartListening);
+        handler.removeCallbacks(expireCommandWindow);
         listening = false;
+        sceneRequestInProgress = false;
+        cameraPermissionPending = false;
         supportCheckInProgress = false;
+        frontCameraCapture.cancel();
+        offlineSpanishSpeaker.stop();
         if (speechRecognizer != null) {
             speechRecognizer.cancel();
         }
@@ -83,6 +100,9 @@ public final class MainActivity extends Activity implements RecognitionListener 
             speechRecognizer.destroy();
             speechRecognizer = null;
         }
+        frontCameraCapture.cancel();
+        localVisionEngine.close();
+        offlineSpanishSpeaker.close();
         super.onDestroy();
     }
 
@@ -93,6 +113,23 @@ public final class MainActivity extends Activity implements RecognitionListener 
             int[] grantResults
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == CAMERA_PERMISSION_REQUEST) {
+            cameraPermissionPending = false;
+            if (!activityStarted || !sceneRequestInProgress) {
+                return;
+            }
+            if (grantResults.length > 0
+                    && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                captureAndDescribeScene();
+            } else {
+                respondToSceneRequest(
+                        getString(R.string.scene_camera_permission_response),
+                        R.string.detail_camera_permission_denied
+                );
+            }
+            return;
+        }
+
         if (requestCode != MICROPHONE_PERMISSION_REQUEST) {
             return;
         }
@@ -270,6 +307,7 @@ public final class MainActivity extends Activity implements RecognitionListener 
         handler.removeCallbacks(restartListening);
         if (!activityStarted
                 || listening
+                || sceneRequestInProgress
                 || supportCheckInProgress
                 || speechRecognizer == null) {
             return;
@@ -300,14 +338,29 @@ public final class MainActivity extends Activity implements RecognitionListener 
 
         Log.d(TAG, "Recognition hypotheses: " + hypotheses);
         showDetail(getString(R.string.detail_heard, hypotheses.get(0)));
-        if (WakeWordMatcher.containsKiko(hypotheses)) {
+        boolean containsWakeWord = WakeWordMatcher.containsKiko(hypotheses);
+        if (containsWakeWord) {
             wakeWordDetected = true;
+            handler.removeCallbacks(expireCommandWindow);
+            handler.postDelayed(expireCommandWindow, COMMAND_WINDOW_MS);
             showStatus(R.string.status_detected, true);
+        }
+        if (!sceneRequestInProgress
+                && (wakeWordDetected || containsWakeWord)
+                && SpanishCommandMatcher.containsDescribeScene(hypotheses)) {
+            beginSceneRequest();
         }
     }
 
     private void showStatus(int stringResource, boolean highlighted) {
         statusView.setText(stringResource);
+        statusView.setTextColor(getColor(
+                highlighted ? R.color.kiko_accent : R.color.kiko_text
+        ));
+    }
+
+    private void showStatus(String text, boolean highlighted) {
+        statusView.setText(text);
         statusView.setTextColor(getColor(
                 highlighted ? R.color.kiko_accent : R.color.kiko_text
         ));
@@ -321,13 +374,150 @@ public final class MainActivity extends Activity implements RecognitionListener 
         detailView.setText(text);
     }
 
+    private void beginSceneRequest() {
+        sceneRequestInProgress = true;
+        handler.removeCallbacks(restartListening);
+        handler.removeCallbacks(expireCommandWindow);
+        listening = false;
+        if (speechRecognizer != null) {
+            speechRecognizer.cancel();
+        }
+
+        if (!localVisionEngine.isModelReady()) {
+            respondToSceneRequest(
+                    getString(R.string.scene_vision_model_missing_response),
+                    R.string.detail_vision_model_missing
+            );
+            return;
+        }
+
+        if (checkSelfPermission(Manifest.permission.CAMERA)
+                == PackageManager.PERMISSION_GRANTED) {
+            captureAndDescribeScene();
+            return;
+        }
+
+        cameraPermissionPending = true;
+        showStatus(R.string.status_camera_permission, false);
+        showDetail(R.string.detail_camera_permission);
+        requestPermissions(
+                new String[]{Manifest.permission.CAMERA},
+                CAMERA_PERMISSION_REQUEST
+        );
+    }
+
+    private void captureAndDescribeScene() {
+        if (!activityStarted || !sceneRequestInProgress || cameraPermissionPending) {
+            return;
+        }
+
+        showStatus(R.string.status_looking, true);
+        showDetail(R.string.detail_camera_ephemeral);
+        frontCameraCapture.capture(new FrontCameraCapture.Callback() {
+            @Override
+            public void onCaptured(android.graphics.Bitmap bitmap, int rotationDegrees) {
+                if (!activityStarted || !sceneRequestInProgress) {
+                    bitmap.recycle();
+                    return;
+                }
+                showStatus(R.string.status_thinking, true);
+                localVisionEngine.describe(
+                        bitmap,
+                        rotationDegrees,
+                        new LocalVisionEngine.Callback() {
+                            @Override
+                            public void onDescription(String description) {
+                                if (activityStarted && sceneRequestInProgress) {
+                                    respondToSceneRequest(
+                                            description,
+                                            R.string.detail_camera_discarded
+                                    );
+                                }
+                            }
+
+                            @Override
+                            public void onModelMissing() {
+                                if (activityStarted && sceneRequestInProgress) {
+                                    respondToSceneRequest(
+                                            getString(
+                                                    R.string
+                                                            .scene_vision_model_missing_response
+                                            ),
+                                            R.string.detail_vision_model_missing
+                                    );
+                                }
+                            }
+
+                            @Override
+                            public void onError() {
+                                if (activityStarted && sceneRequestInProgress) {
+                                    respondToSceneRequest(
+                                            getString(R.string.scene_vision_error_response),
+                                            R.string.detail_vision_error
+                                    );
+                                }
+                            }
+                        }
+                );
+            }
+
+            @Override
+            public void onError() {
+                if (activityStarted && sceneRequestInProgress) {
+                    respondToSceneRequest(
+                            getString(R.string.scene_camera_error_response),
+                            R.string.detail_camera_error
+                    );
+                }
+            }
+        });
+    }
+
+    private void respondToSceneRequest(String response, int detailResource) {
+        showStatus(response, true);
+        showDetail(detailResource);
+        offlineSpanishSpeaker.speak(response, new OfflineSpanishSpeaker.Callback() {
+            @Override
+            public void onFinished() {
+                finishSceneRequest();
+            }
+
+            @Override
+            public void onUnavailable() {
+                showDetail(R.string.detail_offline_tts_unavailable);
+                finishSceneRequest();
+            }
+        });
+    }
+
+    private void finishSceneRequest() {
+        sceneRequestInProgress = false;
+        cameraPermissionPending = false;
+        wakeWordDetected = false;
+        handler.removeCallbacks(expireCommandWindow);
+        scheduleRestart(NORMAL_RESTART_DELAY_MS);
+    }
+
+    private void expireCommandWindow() {
+        if (sceneRequestInProgress) {
+            return;
+        }
+        wakeWordDetected = false;
+        if (activityStarted) {
+            showStatus(R.string.status_listening, false);
+            showDetail(getString(R.string.detail_language_ready, recognitionLanguage));
+        }
+    }
+
     @Override
     public void onReadyForSpeech(Bundle params) {
         Log.d(TAG, "Recognizer ready for speech");
-        if (!wakeWordDetected) {
+        if (!wakeWordDetected && !sceneRequestInProgress) {
             showStatus(R.string.status_listening, false);
         }
-        showDetail(getString(R.string.detail_language_ready, recognitionLanguage));
+        if (!sceneRequestInProgress) {
+            showDetail(getString(R.string.detail_language_ready, recognitionLanguage));
+        }
     }
 
     @Override
@@ -351,6 +541,10 @@ public final class MainActivity extends Activity implements RecognitionListener 
     @Override
     public void onError(int error) {
         Log.w(TAG, "Recognition error: " + error);
+        if (sceneRequestInProgress) {
+            listening = false;
+            return;
+        }
         switch (error) {
             case SpeechRecognizer.ERROR_SPEECH_TIMEOUT:
             case SpeechRecognizer.ERROR_NO_MATCH:

@@ -17,6 +17,9 @@ public final class ModelSpec {
     private final String license;
     private final boolean gated;
     private final String description;
+    private final ModelPurpose purpose;
+    private final String sourceUrl;
+    private final String downloadUrl;
 
     public ModelSpec(
             String id,
@@ -44,6 +47,84 @@ public final class ModelSpec {
         this.license = Objects.requireNonNull(license);
         this.gated = gated;
         this.description = Objects.requireNonNull(description);
+        purpose = ModelPurpose.LANGUAGE;
+        sourceUrl = HUGGING_FACE_BASE + repository;
+        downloadUrl = HUGGING_FACE_BASE
+                + repository
+                + "/resolve/"
+                + revision
+                + "/"
+                + filename
+                + "?download=true";
+    }
+
+    public static ModelSpec directArtifact(
+            String id,
+            String displayName,
+            String parameters,
+            String quantization,
+            String repository,
+            String revision,
+            String filename,
+            long byteSize,
+            String sha256,
+            String license,
+            String description,
+            ModelPurpose purpose,
+            String sourceUrl,
+            String downloadUrl
+    ) {
+        return new ModelSpec(
+                id,
+                displayName,
+                parameters,
+                quantization,
+                repository,
+                revision,
+                filename,
+                byteSize,
+                sha256,
+                license,
+                false,
+                description,
+                purpose,
+                sourceUrl,
+                downloadUrl
+        );
+    }
+
+    private ModelSpec(
+            String id,
+            String displayName,
+            String parameters,
+            String quantization,
+            String repository,
+            String revision,
+            String filename,
+            long byteSize,
+            String sha256,
+            String license,
+            boolean gated,
+            String description,
+            ModelPurpose purpose,
+            String sourceUrl,
+            String downloadUrl
+    ) {
+        this.id = Objects.requireNonNull(id);
+        this.displayName = Objects.requireNonNull(displayName);
+        this.parameters = Objects.requireNonNull(parameters);
+        this.quantization = Objects.requireNonNull(quantization);
+        this.repository = Objects.requireNonNull(repository);
+        this.revision = Objects.requireNonNull(revision);
+        this.filename = Objects.requireNonNull(filename);
+        this.byteSize = byteSize;
+        this.sha256 = Objects.requireNonNull(sha256);
+        this.license = Objects.requireNonNull(license);
+        this.gated = gated;
+        this.description = Objects.requireNonNull(description);
+        this.purpose = Objects.requireNonNull(purpose);
+        this.sourceUrl = Objects.requireNonNull(sourceUrl);
+        this.downloadUrl = Objects.requireNonNull(downloadUrl);
     }
 
     public String getId() {
@@ -94,18 +175,15 @@ public final class ModelSpec {
         return description;
     }
 
+    public ModelPurpose getPurpose() {
+        return purpose;
+    }
+
     public String getSourceUrl() {
-        return HUGGING_FACE_BASE + repository;
+        return sourceUrl;
     }
 
     public String getDownloadUrl() {
-        return HUGGING_FACE_BASE
-                + repository
-                + "/resolve/"
-                + revision
-                + "/"
-                + filename
-                + "?download=true";
+        return downloadUrl;
     }
 }
-

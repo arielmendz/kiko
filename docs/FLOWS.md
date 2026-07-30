@@ -1,8 +1,9 @@
 # Runtime flows
 
 These Mermaid diagrams specify how the planned Spanish toy behaviors cross the
-architecture boundaries defined in `docs/ARCHITECTURE.md`. They describe the
-target design, not behavior implemented by the current download-only milestone.
+architecture boundaries defined in `docs/ARCHITECTURE.md`. Most describe the
+target design. The “¿Qué ves?” flow now includes the delivered local
+object-detection implementation.
 
 ## Command lifecycle
 
@@ -163,32 +164,44 @@ current information.
 sequenceDiagram
     autonumber
     actor Persona
-    participant Router as ActionRouter
-    participant Perception as PerceptionCoordinator
-    participant Camera as Cámara Android
-    participant Vision as VisionEngine local
-    participant Reply as ResponseComposer
+    participant Session as MainActivity
+    participant Camera as FrontCameraCapture
+    participant Vision as LocalVisionEngine
+    participant Model as EfficientDet-Lite0 verificado
+    participant Reply as SpanishSceneDescription
+    participant Voice as TTS español sin red
 
-    Persona->>Router: “¿Qué ves?”
-    Router->>Perception: describe_scene()
+    Persona->>Session: “Kiko, ¿qué ves?” o ventana de 10 s
+    Session->>Session: comprobar modelo local verificado
 
-    alt Permiso y cámara disponibles
-        Perception->>Camera: abrir y capturar un frame
-        Camera-->>Perception: frame + timestamp
-        Perception->>Vision: describir frame en español
-        Vision-->>Perception: observación textual
-        Perception->>Camera: cerrar
-        Perception-->>Reply: observación estructurada
-        Reply-->>Persona: descripción en español
-        Perception->>Perception: descartar frame
+    alt Modelo ausente o no verificado
+        Session-->>Reply: pedir descarga desde Modelos locales
+        Reply-->>Persona: explicación en español sin abrir la cámara
+    else Permiso, cámara y modelo verificado disponibles
+        Session->>Camera: describe_scene() determinista
+        Camera->>Camera: abrir frontal y capturar un frame
+        Camera-->>Session: bitmap solo en memoria
+        Camera->>Camera: cerrar
+        Session->>Vision: bitmap efímero
+        Vision->>Model: inferencia LiteRT local
+        Model-->>Vision: clases COCO + confianza
+        Vision-->>Reply: hasta 3 tipos de objeto
+        Reply-->>Persona: descripción visible en español
+        opt Hay voz española instalada sin red
+            Reply->>Voice: frase española
+            Voice-->>Persona: voz robótica simple
+        end
+        Vision->>Vision: descartar bitmap
     else Sin permiso o captura fallida
-        Perception-->>Reply: error recuperable
+        Session-->>Reply: error recuperable
         Reply-->>Persona: explicación en español
     end
 ```
 
 A normal scene description does not run identity recognition and does not retain
-the frame.
+the frame. EfficientDet-Lite0 is a bounded object detector rather than a scene
+captioner; a future richer local model may replace it without changing the
+explicit permission, ephemeral capture, or no-network boundaries.
 
 ## “¿A quién ves?” and face enrollment
 
