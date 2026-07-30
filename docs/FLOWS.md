@@ -165,7 +165,9 @@ sequenceDiagram
     autonumber
     actor Persona
     participant Session as MainActivity
-    participant Camera as FrontCameraCapture
+    participant Eyes as KikoEyesView
+    participant Camera as SceneCameraCapture
+    participant Preview as PreviewView
     participant Vision as LocalVisionEngine
     participant Model as YOLO26n ONNX verificado
     participant Reply as SpanishSceneDescription
@@ -179,21 +181,42 @@ sequenceDiagram
         Session-->>Reply: pedir descarga desde Modelos locales
         Reply-->>Persona: explicación en español sin abrir la cámara
     else Permiso, cámara y modelo verificado disponibles
+        Session->>Eyes: modo SQUINTING
         Session->>Camera: describe_scene() determinista
-        Camera->>Camera: abrir frontal y capturar un frame
+        Camera->>Camera: abrir cámara trasera
+        Camera->>Preview: mostrar feed en vivo
+        Preview-->>Persona: viewport durante encuadre
+        Camera->>Camera: capturar un frame
+        Camera->>Preview: ocultar y liberar
         Camera-->>Session: bitmap
         Camera->>Camera: cerrar
         Session->>Vision: bitmap + instante de captura
         Vision->>Model: inferencia ONNX Runtime local
         Model-->>Vision: clases COCO + confianza
-        Vision-->>Reply: hasta 3 tipos de objeto
+        alt YOLO incluye person
+            Vision-->>Reply: “Veo una persona, ¿quién es?”
+        else Sin person
+            Vision-->>Reply: hasta 3 tipos de objeto
+        end
         Vision->>History: guardar JPEG orientado + respuesta exacta
         Reply-->>Persona: descripción visible en español
         opt Hay voz española instalada sin red
             Reply->>Voice: frase española
             Voice-->>Persona: voz robótica simple
         end
+        opt YOLO incluye person y la foto se guardó
+            Session->>Eyes: modo LISTENING
+            Session-->>Persona: escuchar nombre local (máx. 2 intentos / 12 s)
+            Persona->>Session: nombre o “cancelar”
+            Session-->>Persona: confirmar Guardar/Cancelar en pantalla desbloqueada
+            alt Guardar confirmado
+                Session->>History: adjuntar nombre a esa foto
+            else Cancelar, timeout o nombre inválido
+                Session->>History: dejar foto sin nombre
+            end
+        end
         Vision->>Vision: reciclar bitmaps de trabajo
+        Session->>Eyes: volver a escucha tras respuesta
     else Sin permiso o captura fallida
         Session-->>Reply: error recuperable
         Reply-->>Persona: explicación en español
@@ -202,9 +225,11 @@ sequenceDiagram
 
 A normal scene description does not run identity recognition. Its capture is
 retained only in the app-private troubleshooting history, where the user can
-delete one record or erase everything. YOLO26n is a bounded object detector
-rather than a scene captioner; a future richer local model may replace it without
-changing the explicit permission, local-only retention, or no-network boundaries.
+delete one record or erase everything. A confirmed spoken name is only an
+annotation on that record: there is no face crop, embedding, later match, or
+authentication. YOLO26n is a bounded object detector rather than a scene
+captioner; a future richer local model may replace it without changing the
+explicit permission, local-only retention, or no-network boundaries.
 
 ## “¿A quién ves?” and face enrollment
 

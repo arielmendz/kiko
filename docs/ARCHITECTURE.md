@@ -8,7 +8,12 @@ model-management areas.
 Wake-word components:
 
 - `MainActivity` owns microphone permission, foreground lifecycle, the Android
-  `SpeechRecognizer`, and user-visible status.
+  `SpeechRecognizer`, user-visible status, and explicit eye/preview modes.
+- `KikoEyesView` draws the two native eyes without image assets or network
+  dependencies. `KikoEyeMotion` maps a mode and elapsed time to deterministic
+  openness and gaze values: resting, listening with blink/side-to-side motion, or
+  squinting during a scene request. Continuous motion stops when Android disables
+  animations.
 - `WakeWordMatcher` is a platform-independent function that normalizes recognition
   hypotheses and detects the exact `kiko` token.
 - `SpeechLanguageSelector` is a platform-independent function that prefers
@@ -18,9 +23,10 @@ Scene-perception components:
 
 - `SpanishCommandMatcher` deterministically recognizes the bounded “¿qué ves?”
   grammar.
-- `FrontCameraCapture` binds a CameraX one-shot capture to the activity lifecycle,
-  selects only the front camera, returns an in-memory bitmap, and unbinds the
-  camera immediately.
+- `SceneCameraCapture` binds CameraX `Preview` and `ImageCapture` to the activity
+  lifecycle, selects only the rear camera, feeds a `PreviewView` for a 1.2-second
+  framing interval, returns one in-memory bitmap, and unbinds both use cases
+  immediately after capture.
 - `LocalVisionEngine` runs the verified YOLO26n ONNX artifact through ONNX Runtime
   1.28.0 on CPU off the UI thread, validates the expected tensor contract,
   letterboxes and normalizes the frame, emits thresholded COCO labels, saves the
@@ -30,8 +36,13 @@ Scene-perception components:
   platform-independent code.
 - `SpanishSceneDescription` translates, counts, and limits those structured
   labels into a short Spanish sentence. It does not accept free-form model output.
+- `SpanishPersonNameExtractor` accepts at most three name words from the bounded
+  post-detection speech window, recognizes explicit cancellation, rejects digits
+  and unexpected characters, and does not use a language model.
 - `VisualHistoryStore` owns app-private JPEG and metadata records, atomic
-  publication, newest-first listing, targeted deletion, and erase-all.
+  publication/update, newest-first listing, confirmed person-name tags, targeted
+  deletion, and erase-all. Metadata v2 remains backward-compatible with unnamed
+  v1 records.
 - `VisualHistoryActivity` renders those records with the exact response attached
   to each capture and exposes both deletion controls.
 - `OfflineSpanishSpeaker` selects an installed Spanish `Voice` only when Android
@@ -78,12 +89,16 @@ The first perception data flow is also one-way and bounded:
 flowchart LR
     Command["“Kiko, ¿qué ves?”"] --> Matcher["SpanishCommandMatcher"]
     Matcher --> Permission["Permiso CAMERA explícito"]
-    Permission --> Camera["FrontCameraCapture"]
+    Permission --> Camera["SceneCameraCapture<br/>cámara trasera"]
+    Camera --> Preview["PreviewView en vivo"]
     Camera --> Frame["Bitmap orientado"]
     Model["YOLO26n ONNX<br/>descargado y verificado"] --> Vision["LocalVisionEngine + ONNX Runtime CPU"]
     Frame --> Vision
     Vision --> Description["SpanishSceneDescription"]
     Vision --> History["VisualHistoryStore<br/>JPEG + respuesta"]
+    Description --> Person{"¿clase person?"}
+    Person -- "Sí" --> Name["Escuchar nombre<br/>+ confirmar en pantalla"]
+    Name --> History
     History --> Gallery["Historial visual<br/>ver / borrar uno / borrar todo"]
     Description --> Screen["Pantalla"]
     Description --> Voice["TTS español sin red"]
@@ -92,7 +107,7 @@ flowchart LR
 
 The wake word opens a ten-second command window. Starting perception cancels the
 speech recognizer so Kiko cannot hear its own TTS. Leaving the activity cancels
-camera and voice work. Permission denial, missing front camera, capture failure,
+camera and voice work. Permission denial, missing rear camera, capture failure,
 analysis failure, a missing/unverified vision model, or missing offline voice
 produces a visible Spanish result without a cloud fallback. Model absence never
 selects the old heuristic path, and a known-missing model is rejected before the
@@ -132,7 +147,10 @@ internal app-private files directory. The image and exact result remain local,
 are removed by per-item deletion, erase-all, or app uninstall, and require no
 broad storage permission. Kiko does not impose an automatic retention cap in the
 current troubleshooting milestone. The `person` class remains an object label,
-not identity or face enrollment.
+not identity or face enrollment. When it is present, Kiko can attach a
+user-supplied name to that single history record after an unlocked on-screen
+confirmation. The record is protected by Android app-private storage and device
+file-based encryption, and is not queried for future identity matching.
 
 Android's `SpeechRecognizer` remains an utterance-oriented bootstrap dependency,
 so microphone sessions can visibly cycle during silence. Reliable continuous
@@ -245,6 +263,10 @@ flowchart TD
   observation, but must remain app-owned, local, and free of SDK telemetry.
   Identity comes from a separate future face detector and embedding matcher, not
   from the `person` object class or a vision-language model.
+- The current person-name follow-up is deliberately not `FaceRegistry`
+  enrollment: it stores no crop or embedding and never claims a later match. The
+  whole-photo annotation follows the visual-history record's inspect/delete-one/
+  erase-all lifecycle.
 - `BodyBleTransport` is the future Android BLE-central boundary. It owns discovery,
   bonding, GATT connection state, MTU negotiation, protocol version negotiation,
   heartbeats, reconnects, and event indications.
@@ -295,11 +317,14 @@ Face recognition stores an encrypted identity record and one or more face
 embeddings after explicit naming and an on-screen owner confirmation while the
 phone is unlocked. Explicit “¿qué ves?” troubleshooting captures are the narrow
 exception to default camera ephemerality: every completed capture is retained
-locally with its result and stays inspectable and erasable. Future face matching
-and enrollment source photos remain discarded by default. Facts, names,
-embeddings, and later indexes remain local, use keys protected by Android
-Keystore, and are removed through targeted forget commands, erase-all, or app
-uninstall.
+locally with its result and stays inspectable and erasable. A detected-person
+photo may receive one spoken name only after an unlocked on-screen confirmation;
+that name labels the photo and is not a face identity record. The photo and tag
+remain app-private under Android file-based encryption and are erased together.
+Future face matching and enrollment source photos remain discarded by default.
+Facts, future face names/embeddings, and later indexes remain local, use keys
+protected by Android Keystore, and are removed through targeted forget commands,
+erase-all, or app uninstall.
 
 Face matches are presentation-only hints, never authentication. They cannot
 authorize body actions, disclose private memories, or enter owner settings.
@@ -366,9 +391,13 @@ defaults until the selected hardware is documented and calibrated.
 ## Verification strategy
 
 - Plain JVM unit tests cover normalization and wake-word boundaries.
+- Plain JVM unit tests cover listening gaze direction, blink closure/reopening,
+  and squint openness independently from Android drawing.
 - Plain JVM unit tests cover the “¿qué ves?” grammar and deterministic Spanish
   response composition, plus visual-history metadata round trips and malformed
   record rejection.
+- Plain JVM unit tests cover person-label gating, bounded Spanish name extraction
+  and cancellation, metadata migration, and confirmed-name serialization.
 - Standard-library Python unit tests cover strict body-protocol parsing, bounded
   two-servo trajectories, native capability limits, idempotent command IDs,
   deadline rejection, heartbeat watchdog, completion, and emergency stop.
@@ -380,10 +409,11 @@ defaults until the selected hardware is documented and calibrated.
   hypotheses plus `Kiko`/`Quico` final alternatives, confirming the current
   end-to-end wake-word path.
 - A repeatable device test is still required before microphone behavior can be
-  treated as regression-tested. Front-camera capture, ONNX Runtime
-  object-detection results/performance, visual-history persistence/rendering/
-  deletion, and offline TTS also require physical-device validation; Android BLE,
-  BlueZ, GPIO, and physical-servo integration remain untested.
+  treated as regression-tested. Rear-camera preview/capture, eye rendering,
+  ONNX Runtime object-detection results/performance, visual-history persistence/
+  rendering/deletion, person-name listening/confirmation, and offline TTS also
+  require physical-device validation; Android BLE, BlueZ, GPIO, and
+  physical-servo integration remain untested.
 - Download endpoint probes validate the GGUF magic bytes for all public catalog
   artifacts. Full transfer, cancellation, resumption, and checksum verification
   still require physical-device validation.

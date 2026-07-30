@@ -233,6 +233,15 @@ public final class VisualHistoryActivity extends Activity {
                             VisualHistoryActivity.this
                     ).format(new Date(record.getCapturedAtEpochMillis())));
             row.description.setText(record.getDescription());
+            if (record.getPersonName() == null) {
+                row.personName.setVisibility(View.GONE);
+            } else {
+                row.personName.setText(getString(
+                        R.string.visual_history_person_name,
+                        record.getPersonName()
+                ));
+                row.personName.setVisibility(View.VISIBLE);
+            }
             row.delete.setOnClickListener(view -> confirmDelete(record));
             return recycled;
         }
@@ -267,6 +276,11 @@ public final class VisualHistoryActivity extends Activity {
         description.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         card.addView(description);
 
+        TextView personName = textView("", 17, R.color.kiko_accent);
+        personName.setPadding(0, dp(8), 0, 0);
+        personName.setVisibility(View.GONE);
+        card.addView(personName);
+
         Button delete = new Button(this);
         delete.setText(R.string.action_delete);
         LinearLayout.LayoutParams deleteParams = new LinearLayout.LayoutParams(
@@ -275,7 +289,14 @@ public final class VisualHistoryActivity extends Activity {
         );
         deleteParams.gravity = Gravity.END;
         card.addView(delete, deleteParams);
-        return new HistoryRow(card, image, timestamp, description, delete);
+        return new HistoryRow(
+                card,
+                image,
+                timestamp,
+                description,
+                personName,
+                delete
+        );
     }
 
     private static final class HistoryRow {
@@ -283,6 +304,7 @@ public final class VisualHistoryActivity extends Activity {
         private final ImageView image;
         private final TextView timestamp;
         private final TextView description;
+        private final TextView personName;
         private final Button delete;
 
         private HistoryRow(
@@ -290,12 +312,14 @@ public final class VisualHistoryActivity extends Activity {
                 ImageView image,
                 TextView timestamp,
                 TextView description,
+                TextView personName,
                 Button delete
         ) {
             this.root = root;
             this.image = image;
             this.timestamp = timestamp;
             this.description = description;
+            this.personName = personName;
             this.delete = delete;
         }
     }

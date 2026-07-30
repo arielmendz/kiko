@@ -38,7 +38,9 @@ While the app is visible:
 3. it verifies that an on-device Spanish model is installed, requesting a system
    model download when one is available but missing;
 4. it listens for “kiko”; and
-5. it displays “escuchando!” when a recognition hypothesis contains that word.
+5. it opens, blinks, and moves a pair of native googly eyes side to side while
+   actively listening; and
+6. it displays “escuchando!” when a recognition hypothesis contains that word.
 
 Matching is case-insensitive, accent-insensitive, and token-based, so punctuation
 around the word is accepted while substrings such as “kikongo” are rejected.
@@ -71,8 +73,9 @@ user says “¿qué ves?” in that window, or says “Kiko, ¿qué ves?” in o
 Kiko:
 
 1. requests camera permission only when needed;
-2. captures one still from the front camera into memory;
-3. closes the camera immediately;
+2. squints its animated eyes and shows a live rear-camera viewport;
+3. keeps the live viewport visible for a short framing interval, captures one
+   still into memory, then closes the camera and hides the viewport;
 4. executes the verified YOLO26n ONNX artifact locally through ONNX Runtime and
    selects up to three detected COCO object types;
 5. displays a short Spanish observation and speaks it through an installed
@@ -80,15 +83,22 @@ Kiko:
 6. saves the oriented image and the exact Spanish result in private on-device
    visual history, including an empty-detection or analysis-error result.
 
+If YOLO emits the `person` class, the result is “Veo una persona, ¿quién es?”.
+Kiko then listens locally for at most two short name attempts within twelve
+seconds. A valid name is attached to that exact history photo only after the
+unlocked user taps **Guardar** in an on-screen confirmation. Saying “cancelar”,
+timing out, rejecting the dialog, or failing validation leaves the photo unnamed.
+
 The **Historial visual** screen shows every saved capture newest first. The user
-can delete one capture or erase all captures. Records remain until deletion or
-app uninstall; there is intentionally no automatic retention cap in this
-troubleshooting milestone.
+can inspect any confirmed person tag, delete one capture, or erase all captures.
+Records remain until deletion or app uninstall; there is intentionally no
+automatic retention cap in this troubleshooting milestone.
 
 If the vision artifact is absent or unverified, Kiko does not open the camera and
 asks the user in Spanish to download it from **Modelos locales**. This is bounded
-object detection, not a free-form scene caption. It does not name people, infer
-identity, create face enrollment data, or execute a vision-language model.
+object detection, not a free-form scene caption. A spoken name is a user-confirmed
+annotation on one photo; Kiko does not infer it, extract a face embedding,
+recognize that person in another image, or execute a vision-language model.
 
 ## Current limitations
 
@@ -105,6 +115,9 @@ identity, create face enrollment data, or execute a vision-language model.
 - “¿Qué ves?” is limited to the 80 COCO classes known by YOLO26n. It
   cannot reliably describe activities, relationships, text, unfamiliar objects,
   or identity.
+- The `person` class can be wrong, and a confirmed name labels the whole saved
+  photo rather than a detected face. It is not biometric enrollment,
+  authentication, or cross-photo recognition.
 - YOLO26n must be explicitly downloaded and verified before the command can run.
 - The YOLO26n weights are AGPL-3.0; Kiko is therefore AGPL-3.0-only. A future
   proprietary or commercial deployment requires an applicable Ultralytics
@@ -114,7 +127,10 @@ identity, create face enrollment data, or execute a vision-language model.
   distribution build should split APKs or app bundles by ABI.
 - Spoken output requires an installed Spanish voice that Android marks as not
   requiring a network connection; otherwise the complete answer remains visible.
-- Front-camera capture and Spanish TTS still require physical-device validation.
+- Rear-camera live preview/capture, eye animation timing, and Spanish TTS still
+  require physical-device validation.
+- The post-detection name-listening, unlocked confirmation, and photo-tag update
+  still require physical-device validation.
 - Visual-history rendering, persistence across process restarts, deletion, and
   storage behavior still require physical-device validation. Because every
   successful capture is retained until explicit deletion, storage usage can grow
@@ -137,9 +153,9 @@ identity, create face enrollment data, or execute a vision-language model.
 2. **Model library (delivered):** securely download and verify pinned local model
    artifacts without executing them.
 3. **Local scene baseline (delivered):** route “¿qué ves?” deterministically,
-   capture one front-camera frame, run YOLO26n on-device, report bounded object
-   detections with an offline Spanish voice, and retain an inspectable,
-   locally erasable troubleshooting record.
+   squint the on-screen eyes, preview and capture one rear-camera frame, run
+   YOLO26n on-device, report bounded object detections with an offline Spanish
+   voice, and retain an inspectable, locally erasable troubleshooting record.
 4. **Embodied tool contract:** define typed read-only sensor tools and
    state-changing body tools, plus native validation, confirmation, deadlines,
    and emergency-stop behavior.

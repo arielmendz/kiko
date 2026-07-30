@@ -1,6 +1,8 @@
 package com.kiko.app;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -52,5 +54,17 @@ public final class SpanishSceneDescriptionTest {
                 "No logro distinguir qué hay delante de mí.",
                 SpanishSceneDescription.describe(Collections.emptyList())
         );
+    }
+
+    @Test
+    public void detectsOnlyConfidentPersonLabelsForNamePrompt() {
+        assertTrue(SpanishSceneDescription.containsPerson(Arrays.asList(
+                new SceneLabel("chair", 0.92f),
+                new SceneLabel("person", 0.74f)
+        )));
+        assertFalse(SpanishSceneDescription.containsPerson(Arrays.asList(
+                new SceneLabel("person", 0.39f),
+                new SceneLabel("dog", 0.88f)
+        )));
     }
 }

@@ -48,7 +48,11 @@ public final class LocalVisionEngine implements AutoCloseable {
     private static final int LETTERBOX_COLOR = Color.rgb(114, 114, 114);
 
     public interface Callback {
-        void onDescription(String description, boolean historySaved);
+        void onDescription(
+                String description,
+                boolean personDetected,
+                String historyRecordId
+        );
 
         void onModelMissing(boolean historySaved);
 
@@ -60,6 +64,7 @@ public final class LocalVisionEngine implements AutoCloseable {
     private final ModelDownloadStore downloads;
     private final VisualHistoryStore visualHistory;
     private final String modelMissingDescription;
+    private final String personQuestion;
     private final String visionErrorDescription;
     private volatile boolean closed;
 
@@ -69,6 +74,7 @@ public final class LocalVisionEngine implements AutoCloseable {
         modelMissingDescription = context.getString(
                 R.string.scene_vision_model_missing_response
         );
+        personQuestion = context.getString(R.string.scene_person_question);
         visionErrorDescription = context.getString(
                 R.string.scene_vision_error_response
         );
@@ -132,7 +138,7 @@ public final class LocalVisionEngine implements AutoCloseable {
                                 oriented,
                                 capturedAtEpochMillis,
                                 modelMissingDescription
-                        )
+                        ) != null
                 );
                 return;
             }
@@ -145,7 +151,7 @@ public final class LocalVisionEngine implements AutoCloseable {
                                 oriented,
                                 capturedAtEpochMillis,
                                 modelMissingDescription
-                        )
+                        ) != null
                 );
                 return;
             }
@@ -186,15 +192,23 @@ public final class LocalVisionEngine implements AutoCloseable {
                 }
             }
 
-            String description = SpanishSceneDescription.describe(labels);
-            boolean historySaved = saveHistory(
+            boolean personDetected =
+                    SpanishSceneDescription.containsPerson(labels);
+            String description = personDetected
+                    ? personQuestion
+                    : SpanishSceneDescription.describe(labels);
+            VisualHistoryRecord historyRecord = saveHistory(
                     oriented,
                     capturedAtEpochMillis,
                     description
             );
             mainHandler.post(() -> {
                 if (!closed) {
-                    callback.onDescription(description, historySaved);
+                    callback.onDescription(
+                            description,
+                            personDetected,
+                            historyRecord == null ? null : historyRecord.getId()
+                    );
                 }
             });
         } catch (Exception | LinkageError error) {
@@ -204,7 +218,7 @@ public final class LocalVisionEngine implements AutoCloseable {
                     historyBitmap,
                     capturedAtEpochMillis,
                     visionErrorDescription
-            );
+            ) != null;
             mainHandler.post(() -> {
                 if (!closed) {
                     callback.onError(historySaved);
@@ -219,17 +233,16 @@ public final class LocalVisionEngine implements AutoCloseable {
         }
     }
 
-    private boolean saveHistory(
+    private VisualHistoryRecord saveHistory(
             Bitmap bitmap,
             long capturedAtEpochMillis,
             String description
     ) {
         try {
-            visualHistory.save(bitmap, capturedAtEpochMillis, description);
-            return true;
+            return visualHistory.save(bitmap, capturedAtEpochMillis, description);
         } catch (Exception error) {
             Log.e(TAG, "Could not save visual history capture", error);
-            return false;
+            return null;
         }
     }
 

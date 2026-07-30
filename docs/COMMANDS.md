@@ -88,19 +88,26 @@ admits uncertainty instead of inventing current facts.
 ### Scene description
 
 `describe_scene` activates the camera only after the explicit command, captures a
-bounded still frame, passes it to the current `LocalVisionEngine`, and releases
-the camera. Every completed capture and its exact Spanish response are retained
-in Kiko's private visual troubleshooting history until the user deletes that
-record, erases all history, or uninstalls the app. The response describes only
-the supported visible properties in Spanish and does not infer a person's
-identity.
+bounded rear-camera still after showing a short live preview, passes it to the
+current `LocalVisionEngine`, and releases the camera. Kiko's eyes squint from
+command acceptance through completion. Every completed capture and its exact
+Spanish response are retained in Kiko's private visual troubleshooting history
+until the user deletes that record, erases all history, or uninstalls the app.
+The response describes only the supported visible properties in Spanish and does
+not infer a person's identity.
 
 The delivered first iteration recognizes “¿qué ves?” deterministically in the
-same utterance as “Kiko” or during a ten-second post-wake window. It uses the front
+same utterance as “Kiko” or during a ten-second post-wake window. It uses the rear
 camera and the pinned YOLO26n model to report up to three COCO object
-types. “Una persona” means only that the object detector emitted the `person`
-class; it is not a name, identity, enrollment, or authentication result. Free-form
-scene and activity captions remain future work.
+types. If any accepted detection has the `person` class, Kiko instead says “Veo
+una persona, ¿quién es?” and opens a bounded local name-listening window. A name
+is saved on that one history photo only after an unlocked on-screen **Guardar**
+confirmation. Saying “cancelar” or declining leaves the photo unnamed.
+
+The `person` class is not a face detection or identity result. The confirmed name
+does not create an embedding, enroll a reusable identity, authenticate anyone, or
+cause Kiko to name the person in a future photo. Free-form scene and activity
+captions remain future work.
 
 The answer is always displayed. It is spoken only through an installed Spanish
 TTS voice that Android marks as not requiring a network connection. The current

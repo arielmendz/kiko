@@ -4,12 +4,21 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
 final class VisualHistoryMetadata {
-    private static final String VERSION = "kiko-visual-history-v1";
+    private static final String VERSION_1 = "kiko-visual-history-v1";
+    private static final String VERSION_2 = "kiko-visual-history-v2";
 
     private VisualHistoryMetadata() {
     }
 
     static String encode(long capturedAtEpochMillis, String description) {
+        return encode(capturedAtEpochMillis, description, null);
+    }
+
+    static String encode(
+            long capturedAtEpochMillis,
+            String description,
+            String personName
+    ) {
         if (capturedAtEpochMillis <= 0L) {
             throw new IllegalArgumentException("Invalid capture time");
         }
@@ -19,7 +28,18 @@ final class VisualHistoryMetadata {
         String encodedDescription = Base64.getEncoder().encodeToString(
                 description.getBytes(StandardCharsets.UTF_8)
         );
-        return VERSION + "\n" + capturedAtEpochMillis + "\n" + encodedDescription;
+        String encodedPersonName = personName == null
+                ? ""
+                : Base64.getEncoder().encodeToString(
+                        personName.getBytes(StandardCharsets.UTF_8)
+                );
+        return VERSION_2
+                + "\n"
+                + capturedAtEpochMillis
+                + "\n"
+                + encodedDescription
+                + "\n"
+                + encodedPersonName;
     }
 
     static Decoded decode(String encoded) {
@@ -27,7 +47,9 @@ final class VisualHistoryMetadata {
             throw new IllegalArgumentException("Metadata is required");
         }
         String[] lines = encoded.split("\n", -1);
-        if (lines.length != 3 || !VERSION.equals(lines[0])) {
+        boolean legacy = lines.length == 3 && VERSION_1.equals(lines[0]);
+        boolean current = lines.length == 4 && VERSION_2.equals(lines[0]);
+        if (!legacy && !current) {
             throw new IllegalArgumentException("Unsupported visual history metadata");
         }
 
@@ -53,16 +75,37 @@ final class VisualHistoryMetadata {
         if (description.trim().isEmpty()) {
             throw new IllegalArgumentException("Description is required");
         }
-        return new Decoded(capturedAtEpochMillis, description);
+
+        String personName = null;
+        if (current && !lines[3].isEmpty()) {
+            try {
+                personName = new String(
+                        Base64.getDecoder().decode(lines[3]),
+                        StandardCharsets.UTF_8
+                );
+            } catch (IllegalArgumentException error) {
+                throw new IllegalArgumentException("Invalid person name", error);
+            }
+            if (personName.trim().isEmpty()) {
+                throw new IllegalArgumentException("Person name is required");
+            }
+        }
+        return new Decoded(capturedAtEpochMillis, description, personName);
     }
 
     static final class Decoded {
         private final long capturedAtEpochMillis;
         private final String description;
+        private final String personName;
 
-        private Decoded(long capturedAtEpochMillis, String description) {
+        private Decoded(
+                long capturedAtEpochMillis,
+                String description,
+                String personName
+        ) {
             this.capturedAtEpochMillis = capturedAtEpochMillis;
             this.description = description;
+            this.personName = personName;
         }
 
         long getCapturedAtEpochMillis() {
@@ -71,6 +114,10 @@ final class VisualHistoryMetadata {
 
         String getDescription() {
             return description;
+        }
+
+        String getPersonName() {
+            return personName;
         }
     }
 }

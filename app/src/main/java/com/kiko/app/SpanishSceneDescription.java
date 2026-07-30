@@ -58,6 +58,23 @@ public final class SpanishSceneDescription {
         return "Veo " + join(phrases) + ".";
     }
 
+    public static boolean containsPerson(List<SceneLabel> labels) {
+        if (labels == null) {
+            return false;
+        }
+        for (SceneLabel label : labels) {
+            if (label != null
+                    && label.getText() != null
+                    && label.getConfidence() >= MIN_CONFIDENCE
+                    && "person".equals(
+                            label.getText().trim().toLowerCase(Locale.ROOT)
+                    )) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static String join(List<String> items) {
         if (items.size() == 1) {
             return items.get(0);

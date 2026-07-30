@@ -46,3 +46,9 @@
   “¿qué ves?” image with Kiko's exact result, displays records newest first, and
   supports individual deletion and erase-all without adding network or storage
   permissions.
+- Add native googly eyes that blink and look side to side while listening, squint
+  during “¿qué ves?”, and pair that scene request with a short live rear-camera
+  viewport before the saved one-shot capture.
+- When YOLO detects `person`, ask who it is, listen locally for a bounded name,
+  require unlocked on-screen confirmation, and attach the confirmed name only to
+  that erasable visual-history photo without enabling face recognition.

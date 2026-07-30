@@ -7,12 +7,13 @@ to a Raspberry Pi body controlling two servos. It is a personal, noncommercial
 project.
 
 Kiko currently listens with Android's on-device speech recognizer and displays
-**“escuchando!”** whenever it hears the wake word **“kiko”**. For the first
-perception use case, “Kiko, ¿qué ves?”, it captures one front-camera frame,
-runs a downloaded YOLO26n object detector locally, and speaks a short Spanish
-observation with a deliberately simple offline voice. It also provides a
-download-only library of local GGUF language models; language-model inference is
-not implemented yet.
+**“escuchando!”** whenever it hears the wake word **“kiko”**. Native googly eyes
+open, blink, and look side to side while the recognizer listens. For the first
+perception use case, “Kiko, ¿qué ves?”, the eyes squint, a live rear-camera
+viewport appears, Kiko captures one frame, runs a downloaded YOLO26n object
+detector locally, and speaks a short Spanish observation with a deliberately
+simple offline voice. It also provides a download-only library of local GGUF
+language models; language-model inference is not implemented yet.
 
 ## Current scope
 
@@ -23,17 +24,24 @@ not implemented yet.
 - Spanish wake-word matching ignores case, punctuation, and accents, and accepts
   common `Quico`/`Quiko` transcriptions.
 - Clear UI states for permission, recognition availability, listening, and match.
+- Shows lightweight native googly eyes that animate only while listening and
+  squint for the complete “¿qué ves?” request.
 - Displays the latest recognition hypothesis or actionable error on screen for
   physical-device diagnosis.
 - Accepts “¿qué ves?” in the same utterance as “Kiko” or during a ten-second
   command window after the wake word.
-- Requests camera permission only for that explicit command, captures one
-  front-camera still in memory, and releases the camera immediately.
+- Requests camera permission only for that explicit command, shows the rear-camera
+  feed live for framing, captures one still in memory, and releases the camera
+  immediately after capture.
 - Runs YOLO26n through ONNX Runtime on the device and reports up to three detected
   COCO object types in Spanish.
 - Saves every completed “¿qué ves?” capture with Kiko's Spanish result in a
   private, on-device **Historial visual**, including the “nothing recognized” or
   analysis-error result. Captures can be deleted individually or all at once.
+- When YOLO emits the `person` class, asks “Veo una persona, ¿quién es?”, listens
+  locally for a short name, and requires an unlocked on-screen confirmation
+  before attaching that name to the saved photo. The tag is not face recognition
+  and is never used as identity evidence.
 - Speaks the displayed result with an installed Spanish TTS voice only when that
   voice declares that it does not require a network connection.
 - Offers pinned Gemma 3 1B, Bonsai 1.7B, Qwen3 0.6B, and LFM2.5 350M GGUF
@@ -66,10 +74,12 @@ Open the repository in Android Studio, let Gradle sync, and run the `app`
 configuration. Open **Modelos locales** and explicitly download
 **YOLO26n** before trying perception. Grant microphone access, then say
 “Kiko, ¿qué ves?” (or say “Kiko” and then “¿qué ves?” within ten seconds), grant
-camera access, and face the phone's front camera toward the scene. Kiko displays
-the response even if the device has no installed offline Spanish TTS voice. Open
-**Historial visual** on the wake-word screen to inspect the exact saved image and
-label, delete one capture, or erase the complete history.
+camera access, and point the phone's rear camera toward the scene. Kiko shows the
+live viewport before taking the still and displays the response even if the
+device has no installed offline Spanish TTS voice. Open **Historial visual** on
+the wake-word screen to inspect the exact saved image and label, delete one
+capture, or erase the complete history. If Kiko detects a person, answer with a
+name (or say “cancelar”) and confirm **Guardar** on screen to label that photo.
 
 If a Spanish model needs to be downloaded, leave the phone online until the system
 speech service completes it, then close and reopen Kiko. Audio recognition remains
@@ -117,8 +127,10 @@ PYTHONPATH=body/raspberry-pi/src \
   Spanish recognition model without coupling that logic to Android UI state.
 - `app/src/main/java/com/kiko/app/SpanishCommandMatcher.java` recognizes the
   bounded “¿qué ves?” command without a language model.
-- `app/src/main/java/com/kiko/app/FrontCameraCapture.java` owns one-shot in-memory
-  front-camera capture and camera release.
+- `app/src/main/java/com/kiko/app/KikoEyesView.java` draws the native googly eyes;
+  `KikoEyeMotion.java` provides deterministic blink, gaze, and squint samples.
+- `app/src/main/java/com/kiko/app/SceneCameraCapture.java` owns the rear-camera
+  live preview, delayed one-shot capture, and camera release.
 - `app/src/main/java/com/kiko/app/LocalVisionEngine.java` produces the current
   YOLO26n object detections through direct local ONNX Runtime inference and hands
   the oriented capture and result to the private visual-history store.
@@ -131,6 +143,8 @@ PYTHONPATH=body/raspberry-pi/src \
   UI state.
 - `app/src/main/java/com/kiko/app/SpanishSceneDescription.java` composes the
   structured observation in Spanish.
+- `app/src/main/java/com/kiko/app/SpanishPersonNameExtractor.java` bounds and
+  normalizes local speech hypotheses for the optional confirmed photo tag.
 - `app/src/main/java/com/kiko/app/OfflineSpanishSpeaker.java` selects only an
   installed non-network Spanish voice and applies the simple robotic profile.
 - `app/src/main/java/com/kiko/app/ModelLibraryActivity.java` renders the model

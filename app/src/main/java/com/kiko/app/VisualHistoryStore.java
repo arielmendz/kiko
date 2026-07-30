@@ -9,6 +9,9 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -73,6 +76,7 @@ public final class VisualHistoryStore {
                     id,
                     capturedAtEpochMillis,
                     description,
+                    null,
                     imageFile
             );
         } finally {
@@ -110,6 +114,7 @@ public final class VisualHistoryStore {
                         id,
                         metadata.getCapturedAtEpochMillis(),
                         metadata.getDescription(),
+                        metadata.getPersonName(),
                         imageFile
                 ));
             } catch (IOException | IllegalArgumentException ignored) {
@@ -124,6 +129,43 @@ public final class VisualHistoryStore {
             return byTime != 0 ? byTime : right.getId().compareTo(left.getId());
         });
         return records;
+    }
+
+    public boolean setPersonName(String recordId, String personName) {
+        if (!isRecordId(recordId)
+                || personName == null
+                || personName.trim().isEmpty()) {
+            return false;
+        }
+        String normalizedName = personName.trim();
+        File imageFile = new File(directory, recordId + IMAGE_SUFFIX);
+        File metadataFile = new File(directory, recordId + METADATA_SUFFIX);
+        File metadataTemp = new File(
+                directory,
+                recordId + METADATA_SUFFIX + ".person" + TEMP_SUFFIX
+        );
+        if (!imageFile.isFile() || !metadataFile.isFile()) {
+            return false;
+        }
+
+        try {
+            VisualHistoryMetadata.Decoded metadata =
+                    VisualHistoryMetadata.decode(readMetadata(metadataFile));
+            writeMetadata(
+                    VisualHistoryMetadata.encode(
+                            metadata.getCapturedAtEpochMillis(),
+                            metadata.getDescription(),
+                            normalizedName
+                    ),
+                    metadataTemp
+            );
+            replaceFile(metadataTemp, metadataFile);
+            return true;
+        } catch (IOException | IllegalArgumentException error) {
+            return false;
+        } finally {
+            metadataTemp.delete();
+        }
     }
 
     public boolean delete(VisualHistoryRecord record) {
@@ -201,6 +243,23 @@ public final class VisualHistoryStore {
     private static void moveNewFile(File source, File destination) throws IOException {
         if (destination.exists() || !source.renameTo(destination)) {
             throw new IOException("Could not finalize visual history file");
+        }
+    }
+
+    private static void replaceFile(File source, File destination) throws IOException {
+        try {
+            Files.move(
+                    source.toPath(),
+                    destination.toPath(),
+                    StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING
+            );
+        } catch (AtomicMoveNotSupportedException error) {
+            Files.move(
+                    source.toPath(),
+                    destination.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING
+            );
         }
     }
 

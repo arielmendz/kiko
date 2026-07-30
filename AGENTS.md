@@ -23,11 +23,15 @@ The current milestones are:
 3. the repository contains a transport-independent Raspberry Pi body safety core
    and simulator, but no Android BLE, BlueZ, GPIO, or physical-servo integration;
    and
-4. after “kiko”, “¿qué ves?” captures one front-camera still and
+4. the wake-word screen shows native googly eyes that blink and look side to side
+   while listening; after “kiko”, “¿qué ves?” squints those eyes, shows a live
+   rear-camera viewport, captures one still, and
    runs a downloaded, SHA-verified YOLO26n ONNX artifact locally through ONNX
    Runtime, then reports bounded COCO object detections through Spanish screen
    text and an offline-only voice, and saves the image plus result in an
-   inspectable, locally erasable troubleshooting history; and
+   inspectable, locally erasable troubleshooting history; a `person` detection
+   may receive one user-spoken photo tag only after unlocked on-screen
+   confirmation, without face recognition or authentication; and
 5. no language-model or vision-language-model inference runs yet; local
    object-detection inference does.
 
@@ -89,6 +93,10 @@ architecture.
   in private, inspectable, locally erasable troubleshooting history; other camera
   flows must not retain frames by default. Never use a language model to guess
   identity.
+- A confirmed name on an “¿qué ves?” photo is an annotation on that history
+  record, not face enrollment. It requires an unlocked on-screen confirmation and
+  must never be reused to identify, authenticate, or authorize the person in
+  another frame.
 - Face matches are toy responses, never authentication. Enrollment, identity
   deletion, and erase-all require an unlocked on-screen owner control; face output
   must not authorize actions or disclose private memory.
