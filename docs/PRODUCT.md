@@ -6,7 +6,7 @@ Kiko is the mind of a physical companion: an Android application that runs a loc
 AI model and connects to a body through USB. The completed product must not depend
 on cloud inference for its core intelligence.
 
-## Current milestone: wake-word screen
+## Delivered milestone: wake-word screen
 
 While the app is visible:
 
@@ -23,6 +23,23 @@ around the word is accepted while substrings such as “kikongo” are rejected.
 of the spoken name. The screen shows the latest hypothesis or a meaningful error
 to make device-specific recognition behavior observable.
 
+## Current milestone: downloadable local models
+
+From **Modelos locales**, the user can:
+
+1. inspect Gemma 3 1B, Bonsai 1.7B, Qwen3 0.6B, and LFM2.5 350M;
+2. see each artifact's parameter count, quantization, size, and license;
+3. start a model download and leave the screen while Android continues it;
+4. see progress, cancel an active download, retry a failure, or delete a model;
+5. use the system browser to inspect the upstream source and license; and
+6. receive a usable `.gguf` only after exact byte-size and SHA-256 verification.
+
+Gemma is gated by Google on Hugging Face. The user must accept the Gemma license
+externally and provide a Hugging Face read token. Kiko encrypts that token with
+Android Keystore and never logs it.
+
+This phase downloads models but deliberately does not load or execute them.
+
 ## Current limitations
 
 - Recognition is active only while the activity is in the foreground.
@@ -32,22 +49,28 @@ to make device-specific recognition behavior observable.
   silence; it is not a production-quality continuous wake-word detector.
 - The current wake-word mechanism is a bootstrap dependency on an Android platform
   service, not the final app-owned local model.
-- No AI model inference or USB communication is implemented yet.
+- No language-model inference or USB communication is implemented yet.
+- Downloaded models are removed when Kiko is uninstalled because they live in the
+  app-specific external files directory.
+- Bonsai's Q1 format requires Prism ML's specialized llama.cpp kernels; selecting
+  an inference runtime remains future work.
 - Physical-device validation on a Redmi Note 10 Pro running Android 13 confirmed
   partial and final “Kiko” detection after the diagnostic fix. Other recognizers
   and device models remain unverified.
 
 ## Roadmap
 
-1. **Wake-word screen (current):** recognize “kiko” locally and show
+1. **Wake-word screen (delivered):** recognize “kiko” locally and show
    “escuchando!”.
-2. **App-owned audio pipeline:** replace the platform recognizer with deterministic
+2. **Model library (current):** securely download and verify pinned local model
+   artifacts without executing them.
+3. **App-owned audio pipeline:** replace the platform recognizer with deterministic
    streaming audio capture and a bundled wake-word model.
-3. **Local conversational model:** package and run a quantized model on supported
+4. **Local conversational model:** load and run a selected GGUF model on supported
    Android hardware, with explicit memory and thermal budgets.
-4. **USB body link:** define a versioned command/telemetry protocol and communicate
+5. **USB body link:** define a versioned command/telemetry protocol and communicate
    through Android USB host APIs.
-5. **Embodied loop:** connect wake word, local inference, safety policy, physical
+6. **Embodied loop:** connect wake word, local inference, safety policy, physical
    actions, telemetry, and recovery into an offline-first experience.
 
 ## Non-goals for the current milestone
@@ -55,5 +78,6 @@ to make device-specific recognition behavior observable.
 - Background or always-on listening.
 - Cloud speech recognition or cloud AI.
 - USB device discovery or control.
-- AI model download, inference, or conversation. The system speech service may
-  download its own Spanish recognition pack.
+- Language-model inference or conversation. The system speech service may download
+  its own Spanish recognition pack, and the model library downloads only artifacts
+  explicitly selected by the user.

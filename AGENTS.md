@@ -11,8 +11,12 @@ Kiko's final objective is an Android application that:
 2. continues to function without a cloud inference dependency; and
 3. connects to and controls a physical body over USB.
 
-The current milestone is narrower: while the foreground app hears the wake word
-“kiko”, the screen must show “escuchando!”.
+The current milestones are:
+
+1. while the foreground wake-word screen hears “kiko”, it shows “escuchando!”;
+2. users can download, verify, inspect, cancel, and delete the documented local
+   GGUF model artifacts; and
+3. no language-model inference runs yet.
 
 Do not silently weaken the local-first or USB-body goals. Temporary platform
 dependencies must be identified as such in `README.md`, `docs/PRODUCT.md`, and
@@ -43,9 +47,13 @@ architecture.
 
 ## Engineering constraints
 
-- Local-first is a hard requirement. Do not add network permissions, analytics,
-  cloud inference, or remote speech/model services without explicit human
-  approval and prominent documentation.
+- Local-first is a hard requirement. `INTERNET` is authorized only for explicit
+  user-initiated model artifact downloads. Do not use it for analytics, cloud
+  inference, prompt transport, remote speech, or silent background fetching
+  without new explicit human approval and prominent documentation.
+- Keep catalog artifacts pinned to immutable upstream revisions and expected
+  SHA-256 hashes. Review source, license, filename, size, and runtime compatibility
+  before changing any entry.
 - Keep wake-word detection, inference, USB transport, and UI state as separate
   boundaries so each can be replaced and tested independently.
 - Request only permissions needed by implemented behavior.

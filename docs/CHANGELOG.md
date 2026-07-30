@@ -11,3 +11,10 @@
 - Prefer `es-US`, verify/download on-device Spanish support, and stop retrying
   non-recoverable recognition failures.
 - Accept `Quico` and `Quiko` as common transcriptions of the spoken “kiko” command.
+- Add a download-only local model library for Gemma 3 1B, Bonsai 1.7B, Qwen3
+  0.6B, and LFM2.5 350M.
+- Add persistent system-managed downloads with progress, cancellation, retry,
+  deletion, private app storage, and SHA-256 verification.
+- Add encrypted Hugging Face token storage for license-gated Gemma downloads.
+- Permit network access only for explicit model artifact downloads; inference
+  remains unimplemented.

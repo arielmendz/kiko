@@ -18,6 +18,7 @@ import android.util.Log;
 import android.view.Gravity;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
+import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -127,8 +128,15 @@ public final class MainActivity extends Activity implements RecognitionListener 
         detailView.setGravity(Gravity.CENTER);
         detailView.setPadding(0, 32, 0, 0);
 
+        Button modelsButton = new Button(this);
+        modelsButton.setText(R.string.action_models);
+        modelsButton.setOnClickListener(view -> startActivity(
+                new Intent(this, ModelLibraryActivity.class)
+        ));
+
         content.addView(statusView);
         content.addView(detailView);
+        content.addView(modelsButton);
         return content;
     }
 
