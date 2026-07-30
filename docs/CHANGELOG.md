@@ -36,3 +36,9 @@
 - Pin and verify the versioned EfficientDet-Lite0 artifact in the model library;
   discard every scene frame after inference and add no face enrollment, identity,
   camera persistence, cloud vision, heuristic fallback, or SDK analytics.
+- Replace EfficientDet-Lite0/LiteRT with the official pinned YOLO26n ONNX model
+  and ONNX Runtime Android, including aspect-preserving letterboxing, validated
+  end-to-end output parsing, immutable release-asset download headers, and
+  deterministic parser tests.
+- License Kiko under AGPL-3.0-only to comply with the YOLO26n model license;
+  proprietary or commercial use requires a separate Ultralytics license review.

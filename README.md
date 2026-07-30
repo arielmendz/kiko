@@ -9,8 +9,8 @@ project.
 Kiko currently listens with Android's on-device speech recognizer and displays
 **“escuchando!”** whenever it hears the wake word **“kiko”**. For the first
 perception use case, “Kiko, ¿qué ves?”, it captures one front-camera frame,
-runs a downloaded EfficientDet-Lite0 object detector locally, and speaks a short
-Spanish observation with a deliberately simple offline voice. It also provides a
+runs a downloaded YOLO26n object detector locally, and speaks a short Spanish
+observation with a deliberately simple offline voice. It also provides a
 download-only library of local GGUF language models; language-model inference is
 not implemented yet.
 
@@ -29,13 +29,13 @@ not implemented yet.
   command window after the wake word.
 - Requests camera permission only for that explicit command, captures one
   front-camera still in memory, and releases the camera immediately.
-- Runs EfficientDet-Lite0 through LiteRT on the device and reports up to three
-  detected COCO object types in Spanish. The frame is discarded and never written
-  to storage.
+- Runs YOLO26n through ONNX Runtime on the device and reports up to three detected
+  COCO object types in Spanish. The frame is discarded and never written to
+  storage.
 - Speaks the displayed result with an installed Spanish TTS voice only when that
   voice declares that it does not require a network connection.
 - Offers pinned Gemma 3 1B, Bonsai 1.7B, Qwen3 0.6B, and LFM2.5 350M GGUF
-  downloads plus the runnable EfficientDet-Lite0 vision artifact, with progress,
+  downloads plus the runnable YOLO26n vision artifact, with progress,
   cancellation, deletion, and SHA-256 verification.
 - Stores model files in Kiko's app-specific external directory so uninstalling the
   app removes them without requesting broad storage access.
@@ -45,11 +45,12 @@ not implemented yet.
 The current implementation uses the speech recognizer and text-to-speech engine
 supplied by Android. These are temporary platform dependencies: future
 local-model milestones will replace them with app-owned wake-word and voice
-components. Vision inference is app-owned and local, using the Apache-2.0 LiteRT
-runtime directly rather than a cloud or analytics SDK. EfficientDet is a bounded
-COCO object detector, not a vision-language model or detailed scene captioner.
-The body scaffold does not yet advertise through BlueZ, drive GPIO, or connect
-from Android, so the Android app does not request Bluetooth permissions yet.
+components. Vision inference is app-owned and local, using the MIT-licensed ONNX
+Runtime directly rather than a cloud or analytics SDK. YOLO26n is an AGPL-3.0
+bounded COCO object detector, not a vision-language model or detailed scene
+captioner. Kiko is consequently licensed under AGPL-3.0-only. The body scaffold
+does not yet advertise through BlueZ, drive GPIO, or connect from Android, so the
+Android app does not request Bluetooth permissions yet.
 
 ## Run it
 
@@ -61,7 +62,7 @@ Requirements:
 
 Open the repository in Android Studio, let Gradle sync, and run the `app`
 configuration. Open **Modelos locales** and explicitly download
-**EfficientDet-Lite0** before trying perception. Grant microphone access, then say
+**YOLO26n** before trying perception. Grant microphone access, then say
 “Kiko, ¿qué ves?” (or say “Kiko” and then “¿qué ves?” within ten seconds), grant
 camera access, and face the phone's front camera toward the scene. Kiko displays
 the response even if the device has no installed offline Spanish TTS voice.
@@ -77,9 +78,9 @@ or inference data anywhere. Gemma requires accepting Google's Gemma terms on
 Hugging Face and entering a read-only Hugging Face token. The token is encrypted
 with Android Keystore.
 
-The five catalog files require 2,125,165,855 bytes in total. Downloads continue through
-Android's system download manager if the model screen closes. Details and pinned
-sources are in `docs/MODELS.md`.
+The five catalog files require 2,130,544,293 bytes in total. Downloads continue
+through Android's system download manager if the model screen closes. Details and
+pinned sources are in `docs/MODELS.md`.
 
 From a configured command line:
 
@@ -114,10 +115,11 @@ PYTHONPATH=body/raspberry-pi/src \
 - `app/src/main/java/com/kiko/app/FrontCameraCapture.java` owns one-shot in-memory
   front-camera capture and camera release.
 - `app/src/main/java/com/kiko/app/LocalVisionEngine.java` produces the current
-  EfficientDet-Lite0 object detections through direct local LiteRT inference
-  without storing the frame.
-- `app/src/main/java/com/kiko/app/CocoDetectionParser.java` validates the pinned
-  model's class indices and confidence threshold outside Android UI state.
+  YOLO26n object detections through direct local ONNX Runtime inference without
+  storing the frame.
+- `app/src/main/java/com/kiko/app/Yolo26DetectionParser.java` validates the pinned
+  model's end-to-end rows, class indices, and confidence threshold outside Android
+  UI state.
 - `app/src/main/java/com/kiko/app/SpanishSceneDescription.java` composes the
   structured observation in Spanish.
 - `app/src/main/java/com/kiko/app/OfflineSpanishSpeaker.java` selects only an
@@ -150,3 +152,10 @@ PYTHONPATH=body/raspberry-pi/src \
 This repository is maintained exclusively by AI agents. Read `AGENTS.md` before
 making changes. Every behavior or architecture change must update the relevant
 documentation in the same commit.
+
+## License
+
+Kiko is licensed under AGPL-3.0-only because its runnable YOLO26n weights are
+AGPL-3.0. See `LICENSE` and `docs/MODELS.md`. Proprietary or commercial deployment
+requires a new project-license review and an applicable Ultralytics Enterprise
+license.

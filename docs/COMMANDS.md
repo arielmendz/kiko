@@ -94,7 +94,7 @@ supported visible properties in Spanish and does not infer a person's identity.
 
 The delivered first iteration recognizes “¿qué ves?” deterministically in the
 same utterance as “Kiko” or during a ten-second post-wake window. It uses the front
-camera and the pinned EfficientDet-Lite0 model to report up to three COCO object
+camera and the pinned YOLO26n model to report up to three COCO object
 types. “Una persona” means only that the object detector emitted the `person`
 class; it is not a name, identity, enrollment, or authentication result. Free-form
 scene and activity captions remain future work.

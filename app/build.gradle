@@ -34,7 +34,7 @@ dependencies {
     implementation "androidx.activity:activity:1.13.0"
     implementation "androidx.camera:camera-camera2:${camerax_version}"
     implementation "androidx.camera:camera-lifecycle:${camerax_version}"
-    implementation "com.google.ai.edge.litert:litert:2.1.5"
+    implementation "com.microsoft.onnxruntime:onnxruntime-android:1.28.0"
 
     testImplementation 'junit:junit:4.13.2'
 }

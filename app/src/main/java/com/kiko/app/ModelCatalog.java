@@ -2,10 +2,12 @@ package com.kiko.app;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public final class ModelCatalog {
-    public static final String VISION_MODEL_ID = "efficientdet-lite0";
+    public static final String VISION_MODEL_ID = "yolo26n";
 
     private static final List<ModelSpec> MODELS = Collections.unmodifiableList(
             Arrays.asList(
@@ -67,19 +69,20 @@ public final class ModelCatalog {
                     ),
                     ModelSpec.directArtifact(
                             VISION_MODEL_ID,
-                            "EfficientDet-Lite0",
-                            "80 clases",
-                            "uint8",
-                            "TensorFlow Hub",
-                            "1",
-                            "efficientdet-lite0-v1.tflite",
-                            4_563_519L,
-                            "2e04c53bfeac0ac2a30c057c7e2a777594ce39baaac35a92f74fb1e8c4fc4e0b",
-                            "Apache-2.0",
-                            "Detector local de objetos usado por «¿qué ves?».",
+                            "YOLO26n",
+                            "80 clases · 2.4M",
+                            "FP32 ONNX",
+                            "Ultralytics assets",
+                            "398736502",
+                            "yolo26n.onnx",
+                            9_941_957L,
+                            "2e947b787d9e787b93a16772a5f55b1d4d8c4d86f53146149c5d6a642442d6f7",
+                            "AGPL-3.0",
+                            "Detector YOLO local usado por «¿qué ves?».",
                             ModelPurpose.VISION,
-                            "https://tfhub.dev/tensorflow/lite-model/efficientdet/lite0/detection/metadata/1",
-                            "https://tfhub.dev/tensorflow/lite-model/efficientdet/lite0/detection/metadata/1?lite-format=tflite"
+                            "https://github.com/ultralytics/assets/releases/tag/v8.4.0",
+                            "https://api.github.com/repos/ultralytics/assets/releases/assets/398736502",
+                            githubReleaseHeaders()
                     )
             )
     );
@@ -98,5 +101,12 @@ public final class ModelCatalog {
             }
         }
         return null;
+    }
+
+    private static Map<String, String> githubReleaseHeaders() {
+        Map<String, String> headers = new LinkedHashMap<>();
+        headers.put("Accept", "application/octet-stream");
+        headers.put("X-GitHub-Api-Version", "2022-11-28");
+        return headers;
     }
 }

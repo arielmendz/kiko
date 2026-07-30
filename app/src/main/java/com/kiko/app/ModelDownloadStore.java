@@ -14,6 +14,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.util.Locale;
+import java.util.Map;
 
 public final class ModelDownloadStore {
     private static final String PREFS_NAME = "model_downloads";
@@ -87,6 +88,9 @@ public final class ModelDownloadStore {
                 throw new IllegalArgumentException("A Hugging Face token is required");
             }
             request.addRequestHeader("Authorization", "Bearer " + token.trim());
+        }
+        for (Map.Entry<String, String> header : model.getDownloadHeaders().entrySet()) {
+            request.addRequestHeader(header.getKey(), header.getValue());
         }
 
         long downloadId = downloadManager.enqueue(request);

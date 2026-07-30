@@ -21,11 +21,13 @@ Scene-perception components:
 - `FrontCameraCapture` binds a CameraX one-shot capture to the activity lifecycle,
   selects only the front camera, returns an in-memory bitmap, and unbinds the
   camera immediately.
-- `LocalVisionEngine` runs the verified EfficientDet-Lite0 v1 artifact through the
-  LiteRT 2.1.5 CPU interpreter off the UI thread, validates the expected tensor
-  contract, emits thresholded COCO labels, and recycles every bitmap.
-- `CocoDetectionParser` maps the pinned model's sparse COCO category indices and
-  filters low-confidence or invalid results in platform-independent code.
+- `LocalVisionEngine` runs the verified YOLO26n ONNX artifact through ONNX Runtime
+  1.28.0 on CPU off the UI thread, validates the expected tensor contract,
+  letterboxes and normalizes the frame, emits thresholded COCO labels, and
+  recycles every bitmap.
+- `Yolo26DetectionParser` maps the pinned model's contiguous COCO category indices
+  and rejects malformed boxes, confidence values, classes, or tensor widths in
+  platform-independent code.
 - `SpanishSceneDescription` translates, counts, and limits those structured
   labels into a short Spanish sentence. It does not accept free-form model output.
 - `OfflineSpanishSpeaker` selects an installed Spanish `Voice` only when Android
@@ -34,7 +36,7 @@ Scene-perception components:
 
 Model-management components:
 
-- `ModelCatalog` defines immutable upstream GGUF and TFLite artifacts, their
+- `ModelCatalog` defines immutable upstream GGUF and ONNX artifacts, their
   purposes, expected sizes, SHA-256 hashes, licenses, and gating requirements.
 - `ModelLibraryActivity` renders catalog state and handles explicit user actions.
 - `ModelDownloadStore` delegates durable transfer to Android `DownloadManager`,
@@ -74,7 +76,7 @@ flowchart LR
     Matcher --> Permission["Permiso CAMERA explícito"]
     Permission --> Camera["FrontCameraCapture"]
     Camera --> Frame["Bitmap solo en memoria"]
-    Model["EfficientDet-Lite0<br/>descargado y verificado"] --> Vision["LocalVisionEngine + LiteRT CPU"]
+    Model["YOLO26n ONNX<br/>descargado y verificado"] --> Vision["LocalVisionEngine + ONNX Runtime CPU"]
     Frame --> Vision
     Vision --> Description["SpanishSceneDescription"]
     Description --> Screen["Pantalla"]
@@ -99,6 +101,10 @@ camera opens.
   “¿qué ves?” capture, and `INTERNET` for explicit model artifact downloads.
 - Bluetooth permissions are intentionally absent until Android body discovery and
   control are implemented.
+- The current debug APK is universal and therefore packages ONNX Runtime native
+  libraries for all dependency-provided ABIs. Production distribution should use
+  ABI splits or an Android App Bundle rather than narrowing supported ABIs in the
+  source configuration.
 - Network activity is forbidden for recognition, prompts, inference, analytics,
   and silent catalog fetching.
 - Preferred recognition language: `es-US`, falling back to another installed
@@ -110,12 +116,13 @@ unavailable state instead of falling back to a recognizer that might send audio 
 a server. This preserves the local-first invariant.
 
 CameraX is a local camera abstraction, not a network service. Vision uses the
-Apache-2.0 LiteRT interpreter API directly, with CPU/XNNPACK only; it does not use
-ML Kit, MediaPipe Tasks, a cloud API, or an SDK telemetry layer. The LiteRT AAR's
-optional AI-pack foreground-service permissions and unused WorkManager wake,
-network-state, and boot permissions are explicitly removed during manifest merge.
-Platform TTS remains a temporary dependency. No current scene frame, crop,
-embedding, or label is written to storage, and the `person` class is not identity.
+MIT-licensed ONNX Runtime Android API directly on CPU; it does not use ML Kit,
+MediaPipe Tasks, a cloud API, or an SDK telemetry layer. The YOLO26n weights are
+AGPL-3.0, so the repository is licensed AGPL-3.0-only; proprietary or commercial
+deployment requires a new license review and an applicable Ultralytics Enterprise
+license. Platform TTS remains a temporary dependency. No current scene frame,
+crop, embedding, or label is written to storage, and the `person` class is not
+identity.
 
 Android's `SpeechRecognizer` remains an utterance-oriented bootstrap dependency,
 so microphone sessions can visibly cycle during silence. Reliable continuous
@@ -130,7 +137,7 @@ flowchart LR
     Manager --> Partial["models/&lt;archivo&gt;.part"]
     Partial --> Verify{"Tamaño y SHA-256<br/>exactos"}
     Verify -- "Sí" --> Final["models/&lt;archivo final&gt;"]
-    Final --> Ready["Descargado y verificado<br/>.gguf o .tflite"]
+    Final --> Ready["Descargado y verificado<br/>.gguf o .onnx"]
     Verify -- "No" --> Delete["Eliminar parcial<br/>y mostrar error"]
 ```
 
@@ -139,10 +146,11 @@ visible. Kiko polls persisted download IDs while the screen is active. Canceling
 removes the system transfer and partial file. Deleting removes the verified file.
 Uninstalling Kiko removes the app-specific model directory.
 
-Catalog URLs use immutable Hugging Face commit revisions or the versioned
-TensorFlow Hub EfficientDet path. Expected file sizes and SHA-256 hashes are
-recorded in code and `docs/MODELS.md`. A download is never promoted from `.part`
-to its final `.gguf` or `.tflite` filename unless both checks pass.
+Catalog URLs use immutable Hugging Face commit revisions or the numeric GitHub
+release-asset ID for YOLO26n. Expected file sizes and SHA-256 hashes are recorded
+in code and `docs/MODELS.md`. The GitHub API download includes an explicit
+`application/octet-stream` request header. A download is never promoted from
+`.part` to its final `.gguf` or `.onnx` filename unless both checks pass.
 
 Gemma is a special authenticated path: the user accepts its license externally,
 then supplies a read token. The token is encrypted at rest with Android Keystore,
@@ -219,12 +227,13 @@ flowchart TD
   sensor sample, still-camera capture, or face-recognition operation.
 - `SensorAdapters` use native Android APIs and summarize timestamped sensor
   readings; raw high-rate streams do not enter the language model context.
-- The current `LocalVisionEngine` converts a camera frame into thresholded
-  EfficientDet-Lite0 COCO object labels. A future replacement may produce a richer
-  compact structured Spanish observation, but must remain app-owned, local, and
-  free of SDK telemetry. Identity comes from a separate future face detector and
-  embedding matcher, not from the `person` object class or a vision-language
-  model.
+- The current `LocalVisionEngine` letterboxes a camera frame to `640 × 640`,
+  converts RGB pixels into normalized NCHW float input, and converts the pinned
+  YOLO26n end-to-end output into thresholded COCO object labels. A future
+  replacement may produce a richer compact structured Spanish observation, but
+  must remain app-owned, local, and free of SDK telemetry. Identity comes from a
+  separate future face detector and embedding matcher, not from the `person`
+  object class or a vision-language model.
 - `BodyBleTransport` is the future Android BLE-central boundary. It owns discovery,
   bonding, GATT connection state, MTU negotiation, protocol version negotiation,
   heartbeats, reconnects, and event indications.
@@ -348,17 +357,18 @@ defaults until the selected hardware is documented and calibrated.
 - Standard-library Python unit tests cover strict body-protocol parsing, bounded
   two-servo trajectories, native capability limits, idempotent command IDs,
   deadline rejection, heartbeat watchdog, completion, and emergency stop.
-- Catalog tests require five unique entries with immutable revisions, known sizes,
-  purpose-appropriate filenames, and SHA-256 hashes, including the reviewed
-  EfficientDet-Lite0 pin.
+- Catalog tests require five unique entries with immutable revisions or numeric
+  asset IDs, known sizes, purpose-appropriate filenames, and SHA-256 hashes,
+  including the reviewed YOLO26n ONNX pin.
 - Android build and lint validate manifest/API integration when an SDK is present.
 - A Redmi Note 10 Pro on Android 13 has produced `ki`, `kik`, and `Kiko` partial
   hypotheses plus `Kiko`/`Quico` final alternatives, confirming the current
   end-to-end wake-word path.
 - A repeatable device test is still required before microphone behavior can be
-  treated as regression-tested. Front-camera capture, LiteRT object-detection
-  results/performance, and offline TTS also require physical-device validation;
-  Android BLE, BlueZ, GPIO, and physical-servo integration remain untested.
+  treated as regression-tested. Front-camera capture, ONNX Runtime
+  object-detection results/performance, and offline TTS also require
+  physical-device validation; Android BLE, BlueZ, GPIO, and physical-servo
+  integration remain untested.
 - Download endpoint probes validate the GGUF magic bytes for all public catalog
   artifacts. Full transfer, cancellation, resumption, and checksum verification
   still require physical-device validation.

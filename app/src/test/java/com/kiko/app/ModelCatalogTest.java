@@ -38,8 +38,8 @@ public final class ModelCatalogTest {
                 assertTrue(model.getRevision().matches("[0-9a-f]{40}"));
             } else {
                 assertEquals(ModelCatalog.VISION_MODEL_ID, model.getId());
-                assertTrue(model.getFilename().endsWith(".tflite"));
-                assertEquals("1", model.getRevision());
+                assertTrue(model.getFilename().endsWith(".onnx"));
+                assertTrue(model.getDownloadUrl().contains("/releases/assets/"));
             }
         }
     }
@@ -50,12 +50,17 @@ public final class ModelCatalogTest {
 
         assertNotNull(vision);
         assertEquals(ModelPurpose.VISION, vision.getPurpose());
-        assertEquals(4_563_519L, vision.getByteSize());
+        assertEquals("398736502", vision.getRevision());
+        assertEquals(9_941_957L, vision.getByteSize());
         assertEquals(
-                "2e04c53bfeac0ac2a30c057c7e2a777594ce39baaac35a92f74fb1e8c4fc4e0b",
+                "2e947b787d9e787b93a16772a5f55b1d4d8c4d86f53146149c5d6a642442d6f7",
                 vision.getSha256()
         );
-        assertEquals("Apache-2.0", vision.getLicense());
+        assertEquals("AGPL-3.0", vision.getLicense());
+        assertEquals(
+                "application/octet-stream",
+                vision.getDownloadHeaders().get("Accept")
+        );
     }
 
     @Test

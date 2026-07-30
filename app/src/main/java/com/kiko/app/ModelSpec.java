@@ -1,5 +1,8 @@
 package com.kiko.app;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
 
 public final class ModelSpec {
@@ -20,6 +23,7 @@ public final class ModelSpec {
     private final ModelPurpose purpose;
     private final String sourceUrl;
     private final String downloadUrl;
+    private final Map<String, String> downloadHeaders;
 
     public ModelSpec(
             String id,
@@ -56,6 +60,7 @@ public final class ModelSpec {
                 + "/"
                 + filename
                 + "?download=true";
+        downloadHeaders = Collections.emptyMap();
     }
 
     public static ModelSpec directArtifact(
@@ -72,7 +77,8 @@ public final class ModelSpec {
             String description,
             ModelPurpose purpose,
             String sourceUrl,
-            String downloadUrl
+            String downloadUrl,
+            Map<String, String> downloadHeaders
     ) {
         return new ModelSpec(
                 id,
@@ -89,7 +95,8 @@ public final class ModelSpec {
                 description,
                 purpose,
                 sourceUrl,
-                downloadUrl
+                downloadUrl,
+                downloadHeaders
         );
     }
 
@@ -108,7 +115,8 @@ public final class ModelSpec {
             String description,
             ModelPurpose purpose,
             String sourceUrl,
-            String downloadUrl
+            String downloadUrl,
+            Map<String, String> downloadHeaders
     ) {
         this.id = Objects.requireNonNull(id);
         this.displayName = Objects.requireNonNull(displayName);
@@ -125,6 +133,9 @@ public final class ModelSpec {
         this.purpose = Objects.requireNonNull(purpose);
         this.sourceUrl = Objects.requireNonNull(sourceUrl);
         this.downloadUrl = Objects.requireNonNull(downloadUrl);
+        this.downloadHeaders = Collections.unmodifiableMap(
+                new LinkedHashMap<>(Objects.requireNonNull(downloadHeaders))
+        );
     }
 
     public String getId() {
@@ -185,5 +196,9 @@ public final class ModelSpec {
 
     public String getDownloadUrl() {
         return downloadUrl;
+    }
+
+    public Map<String, String> getDownloadHeaders() {
+        return downloadHeaders;
     }
 }

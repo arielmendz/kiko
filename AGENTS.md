@@ -24,9 +24,9 @@ The current milestones are:
    and simulator, but no Android BLE, BlueZ, GPIO, or physical-servo integration;
    and
 4. after “kiko”, “¿qué ves?” captures one ephemeral front-camera still and
-   runs a downloaded, SHA-verified EfficientDet-Lite0 artifact locally through
-   LiteRT, then reports bounded COCO object detections through Spanish screen text
-   and an offline-only voice; and
+   runs a downloaded, SHA-verified YOLO26n ONNX artifact locally through ONNX
+   Runtime, then reports bounded COCO object detections through Spanish screen
+   text and an offline-only voice; and
 5. no language-model or vision-language-model inference runs yet; local
    object-detection inference does.
 

@@ -167,7 +167,7 @@ sequenceDiagram
     participant Session as MainActivity
     participant Camera as FrontCameraCapture
     participant Vision as LocalVisionEngine
-    participant Model as EfficientDet-Lite0 verificado
+    participant Model as YOLO26n ONNX verificado
     participant Reply as SpanishSceneDescription
     participant Voice as TTS español sin red
 
@@ -183,7 +183,7 @@ sequenceDiagram
         Camera-->>Session: bitmap solo en memoria
         Camera->>Camera: cerrar
         Session->>Vision: bitmap efímero
-        Vision->>Model: inferencia LiteRT local
+        Vision->>Model: inferencia ONNX Runtime local
         Model-->>Vision: clases COCO + confianza
         Vision-->>Reply: hasta 3 tipos de objeto
         Reply-->>Persona: descripción visible en español
@@ -199,7 +199,7 @@ sequenceDiagram
 ```
 
 A normal scene description does not run identity recognition and does not retain
-the frame. EfficientDet-Lite0 is a bounded object detector rather than a scene
+the frame. YOLO26n is a bounded object detector rather than a scene
 captioner; a future richer local model may replace it without changing the
 explicit permission, ephemeral capture, or no-network boundaries.
 

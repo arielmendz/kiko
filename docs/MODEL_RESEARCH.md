@@ -73,14 +73,21 @@ Accelerometers, gyroscopes, GPS, battery state, and body telemetry are numeric o
 structured signals. Native Android code should summarize them deterministically;
 an LLM should not consume raw high-frequency streams.
 
-The camera is different because scene understanding can require a vision model.
-The recommended low-resource vision candidate is **LFM2.5-VL-450M**: it supports
-Spanish vision prompts, object localization, a roughly 229 MB Q4_K_M GGUF, and
-llama.cpp. Its function calling is documented for text-only input, so Kiko should
-use it as a separate `VisionEngine` that returns a compact observation to the
-action router. Gemma 3n E2B is a stronger multimodal research candidate for newer
-phones, but its published 4-bit LiteRT-LM package is roughly 3 GB and is too heavy
-to make the Redmi Note 10 Pro the baseline target.
+The delivered bounded object-detection baseline is **YOLO26n**, using the
+official FP32 ONNX artifact through ONNX Runtime Android. It stays entirely local,
+recognizes 80 COCO classes, and does not perform free-form captioning, OCR,
+activity understanding, or identity. Its AGPL-3.0 license makes Kiko
+AGPL-3.0-only; proprietary or commercial scope requires a new review and an
+applicable Ultralytics Enterprise license.
+
+The camera is different because richer scene understanding can require a
+vision-language model. The recommended low-resource richer-vision candidate is
+**LFM2.5-VL-450M**: it supports Spanish vision prompts, object localization, a
+roughly 229 MB Q4_K_M GGUF, and llama.cpp. Its function calling is documented for
+text-only input, so Kiko should use it as a separate `VisionEngine` that returns a
+compact observation to the action router. Gemma 3n E2B is a stronger multimodal
+research candidate for newer phones, but its published 4-bit LiteRT-LM package is
+roughly 3 GB and is too heavy to make the Redmi Note 10 Pro the baseline target.
 
 Example flow:
 
@@ -170,5 +177,7 @@ license, format, parser, runtime, and on-device results are known.
 - [Berkeley Function Calling Leaderboard v4](https://gorilla.cs.berkeley.edu/leaderboard)
 - [LFM2.5-VL-450M model card](https://huggingface.co/LiquidAI/LFM2.5-VL-450M)
 - [Gemma 3n overview](https://ai.google.dev/gemma/docs/gemma-3n)
+- [Ultralytics YOLO26 documentation](https://docs.ultralytics.com/models/yolo26/)
+- [Ultralytics licensing](https://www.ultralytics.com/license)
 - [Android sensor framework](https://developer.android.com/develop/sensors-and-location/sensors/sensors_overview)
 - [Android Bluetooth Low Energy overview](https://developer.android.com/develop/connectivity/bluetooth/ble/ble-overview)

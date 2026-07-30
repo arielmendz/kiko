@@ -50,7 +50,7 @@ to make device-specific recognition behavior observable.
 
 From **Modelos locales**, the user can:
 
-1. inspect four language artifacts and the EfficientDet-Lite0 vision artifact;
+1. inspect four language artifacts and the YOLO26n vision artifact;
 2. see each artifact's model details, quantization, size, and license;
 3. start a model download and leave the screen while Android continues it;
 4. see progress, cancel an active download, retry a failure, or delete a model;
@@ -61,8 +61,8 @@ Gemma is gated by Google on Hugging Face. The user must accept the Gemma license
 externally and provide a Hugging Face read token. Kiko encrypts that token with
 Android Keystore and never logs it.
 
-The language artifacts remain download-only. EfficientDet-Lite0 is loaded only
-for an explicit “¿qué ves?” request.
+The language artifacts remain download-only. YOLO26n is loaded only for an
+explicit “¿qué ves?” request.
 
 ## Current milestone: first local “¿qué ves?” loop
 
@@ -73,7 +73,7 @@ Kiko:
 1. requests camera permission only when needed;
 2. captures one still from the front camera into memory;
 3. closes the camera immediately;
-4. executes the verified EfficientDet-Lite0 artifact locally through LiteRT and
+4. executes the verified YOLO26n ONNX artifact locally through ONNX Runtime and
    selects up to three detected COCO object types;
 5. displays a short Spanish observation and speaks it through an installed
    non-network Spanish TTS voice; and
@@ -96,11 +96,16 @@ identity, retain face data, or execute a vision-language model.
 - No language-model or vision-language-model inference is implemented, and there
   is no Android-to-body BLE communication yet. Object-detection inference is the
   only app-owned model execution.
-- “¿Qué ves?” is limited to the 80 COCO classes known by EfficientDet-Lite0. It
+- “¿Qué ves?” is limited to the 80 COCO classes known by YOLO26n. It
   cannot reliably describe activities, relationships, text, unfamiliar objects,
   or identity.
-- EfficientDet-Lite0 must be explicitly downloaded and verified before the
-  command can run.
+- YOLO26n must be explicitly downloaded and verified before the command can run.
+- The YOLO26n weights are AGPL-3.0; Kiko is therefore AGPL-3.0-only. A future
+  proprietary or commercial deployment requires an applicable Ultralytics
+  Enterprise license and a new project-license review.
+- The universal debug APK carries ONNX Runtime native libraries for every bundled
+  ABI and is materially larger than the former LiteRT build. A future
+  distribution build should split APKs or app bundles by ABI.
 - Spoken output requires an installed Spanish voice that Android marks as not
   requiring a network connection; otherwise the complete answer remains visible.
 - Front-camera capture and Spanish TTS still require physical-device validation.
@@ -122,7 +127,7 @@ identity, retain face data, or execute a vision-language model.
 2. **Model library (delivered):** securely download and verify pinned local model
    artifacts without executing them.
 3. **Local scene baseline (delivered):** route “¿qué ves?” deterministically,
-   capture one ephemeral front-camera frame, run EfficientDet-Lite0 on-device, and
+   capture one ephemeral front-camera frame, run YOLO26n on-device, and
    report bounded object detections with an offline Spanish voice.
 4. **Embodied tool contract:** define typed read-only sensor tools and
    state-changing body tools, plus native validation, confirmation, deadlines,
