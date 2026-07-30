@@ -9,7 +9,9 @@ Kiko's final objective is an Android application that:
 
 1. runs its AI model locally on the Android device;
 2. continues to function without a cloud inference dependency; and
-3. connects to and controls a physical body over USB.
+3. observes device sensors through typed tools; and
+4. connects to and controls a physical body over USB through a native safety
+   boundary.
 
 The current milestones are:
 
@@ -56,6 +58,10 @@ architecture.
   before changing any entry.
 - Keep wake-word detection, inference, USB transport, and UI state as separate
   boundaries so each can be replaced and tested independently.
+- Treat model output as untrusted. Models may propose typed tool calls, but native
+  code must own Android permissions, schema validation, physical limits,
+  confirmations, deadlines, and emergency-stop behavior. Never connect free-form
+  model output directly to a sensor, camera, location, or USB API.
 - Request only permissions needed by implemented behavior.
 - Never commit secrets, signing keys, generated build output, local SDK paths, or
   model binaries without an explicit artifact strategy.

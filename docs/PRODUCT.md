@@ -64,14 +64,23 @@ This phase downloads models but deliberately does not load or execute them.
    “escuchando!”.
 2. **Model library (current):** securely download and verify pinned local model
    artifacts without executing them.
-3. **App-owned audio pipeline:** replace the platform recognizer with deterministic
+3. **Embodied tool contract:** define typed read-only sensor tools and
+   state-changing body tools, plus native validation, confirmation, deadlines,
+   and emergency-stop behavior.
+4. **App-owned audio pipeline:** replace the platform recognizer with deterministic
    streaming audio capture and a bundled wake-word model.
-4. **Local conversational model:** load and run a selected GGUF model on supported
-   Android hardware, with explicit memory and thermal budgets.
-5. **USB body link:** define a versioned command/telemetry protocol and communicate
+5. **Local action router:** benchmark and run a Kiko-specific FunctionGemma 270M
+   fine-tune and larger tool-capable baselines on supported Android hardware.
+6. **USB body link:** define a versioned command/telemetry protocol and communicate
    through Android USB host APIs.
-6. **Embodied loop:** connect wake word, local inference, safety policy, physical
+7. **Optional local vision:** expose camera observations through a replaceable
+   vision engine without sending images to a cloud service.
+8. **Embodied loop:** connect wake word, local inference, safety policy, physical
    actions, telemetry, and recovery into an offline-first experience.
+
+The current model recommendation and alternatives are recorded in
+`docs/MODEL_RESEARCH.md`. It is a benchmark hypothesis rather than a shipped
+default.
 
 ## Non-goals for the current milestone
 

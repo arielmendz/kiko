@@ -102,20 +102,37 @@ Future work should retain replaceable boundaries even if the concrete classes
 change:
 
 ```text
-AudioSource -> WakeWordDetector -> LocalInferenceEngine -> ActionPolicy
-                                                        -> UsbBodyTransport
-UsbBodyTransport -> BodyTelemetry ----------------------^
+AudioSource -> WakeWordDetector -> ActionRouter -> ToolCallParser -> ActionPolicy
+                                                                     |
+                                                               ToolRegistry
+                                                        /            |          \
+                                                SensorAdapters  VisionEngine  UsbBodyTransport
+                                                                         BodyTelemetry -> |
 ```
 
 - `AudioSource` owns microphone frames and buffering.
 - `WakeWordDetector` consumes audio locally and emits activation events.
-- `LocalInferenceEngine` owns model loading, token generation, and device resource
-  limits.
-- `ActionPolicy` converts model intent into an allowlisted physical command set.
+- `ActionRouter` owns model loading, typed tool proposals, token generation, and
+  device resource limits. The leading research candidate is a Kiko-specific
+  FunctionGemma 270M fine-tune, but the boundary must remain model-independent.
+- `ToolCallParser` accepts only the selected model's documented format and converts
+  it into a closed internal schema.
+- `ActionPolicy` treats model output as untrusted, separates observation from
+  mutation, clamps physical parameters, requests confirmations, and enforces
+  deadlines and emergency-stop behavior.
+- `ToolRegistry` exposes only tools implemented and currently available on the
+  device.
+- `SensorAdapters` use native Android APIs and summarize timestamped sensor
+  readings; raw high-rate streams do not enter the language model context.
+- `VisionEngine` optionally converts a camera frame into a compact structured
+  observation. It is replaceable and separate from the action router.
 - `UsbBodyTransport` owns discovery, permissions, framing, version negotiation,
   reconnects, and telemetry.
 
-No UI class should eventually contain model inference or USB protocol logic.
+The model never owns Android permissions and never writes directly to a sensor,
+camera, location, or USB API. No UI class should eventually contain model
+inference, sensor acquisition, safety policy, or USB protocol logic. The research
+and benchmark gate are detailed in `docs/MODEL_RESEARCH.md`.
 
 ## Verification strategy
 

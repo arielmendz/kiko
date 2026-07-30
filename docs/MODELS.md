@@ -48,3 +48,10 @@ not proof that one future runtime supports every architecture and quantization:
 
 The inference milestone must select and test the runtime on supported Android
 hardware before presenting any model as runnable.
+
+Tool calling changes the selection criteria: general chat quality and parameter
+count are insufficient for physical control. `docs/MODEL_RESEARCH.md` records the
+current recommendation, alternatives, runtime implications, vision strategy, and
+device benchmark gate. The current GGUF-only catalog is a download milestone, not
+a commitment that the final action router will use GGUF; a fine-tuned
+FunctionGemma path would use LiteRT-LM's `.litertlm` format.

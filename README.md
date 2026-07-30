@@ -75,6 +75,8 @@ From a configured command line:
   private model storage, progress, cancellation, and integrity verification.
 - `docs/MODELS.md` records exact artifacts, licenses, and authentication
   requirements.
+- `docs/MODEL_RESEARCH.md` evaluates local tool-calling and vision models for
+  sensors and the USB-connected body.
 - `docs/PRODUCT.md` defines the product goal, current milestone, and roadmap.
 - `docs/ARCHITECTURE.md` records the present design and intended architectural
   boundaries.

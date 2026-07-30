@@ -18,3 +18,6 @@
 - Add encrypted Hugging Face token storage for license-gated Gemma downloads.
 - Permit network access only for explicit model artifact downloads; inference
   remains unimplemented.
+- Document the embodied tool architecture, physical-action safety boundary, model
+  comparison, and recommendation to benchmark a Kiko-specific FunctionGemma 270M
+  action router.
