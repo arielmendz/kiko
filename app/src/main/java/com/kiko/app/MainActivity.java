@@ -20,6 +20,7 @@ import android.widget.FrameLayout;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.activity.ComponentActivity;
 
@@ -171,9 +172,16 @@ public final class MainActivity extends ComponentActivity implements Recognition
                 new Intent(this, ModelLibraryActivity.class)
         ));
 
+        Button visualHistoryButton = new Button(this);
+        visualHistoryButton.setText(R.string.action_visual_history);
+        visualHistoryButton.setOnClickListener(view -> startActivity(
+                new Intent(this, VisualHistoryActivity.class)
+        ));
+
         content.addView(statusView);
         content.addView(detailView);
         content.addView(modelsButton);
+        content.addView(visualHistoryButton);
         return content;
     }
 
@@ -412,7 +420,7 @@ public final class MainActivity extends ComponentActivity implements Recognition
         }
 
         showStatus(R.string.status_looking, true);
-        showDetail(R.string.detail_camera_ephemeral);
+        showDetail(R.string.detail_camera_saving);
         frontCameraCapture.capture(new FrontCameraCapture.Callback() {
             @Override
             public void onCaptured(android.graphics.Bitmap bitmap, int rotationDegrees) {
@@ -424,36 +432,52 @@ public final class MainActivity extends ComponentActivity implements Recognition
                 localVisionEngine.describe(
                         bitmap,
                         rotationDegrees,
+                        System.currentTimeMillis(),
                         new LocalVisionEngine.Callback() {
                             @Override
-                            public void onDescription(String description) {
+                            public void onDescription(
+                                    String description,
+                                    boolean historySaved
+                            ) {
                                 if (activityStarted && sceneRequestInProgress) {
+                                    showHistorySaveWarningIfNeeded(historySaved);
                                     respondToSceneRequest(
                                             description,
-                                            R.string.detail_camera_discarded
+                                            historySaved
+                                                    ? R.string.detail_camera_saved
+                                                    : R.string
+                                                            .detail_visual_history_save_failed
                                     );
                                 }
                             }
 
                             @Override
-                            public void onModelMissing() {
+                            public void onModelMissing(boolean historySaved) {
                                 if (activityStarted && sceneRequestInProgress) {
+                                    showHistorySaveWarningIfNeeded(historySaved);
                                     respondToSceneRequest(
                                             getString(
                                                     R.string
                                                             .scene_vision_model_missing_response
                                             ),
-                                            R.string.detail_vision_model_missing
+                                            historySaved
+                                                    ? R.string
+                                                            .detail_vision_model_missing_saved
+                                                    : R.string
+                                                            .detail_vision_model_missing
                                     );
                                 }
                             }
 
                             @Override
-                            public void onError() {
+                            public void onError(boolean historySaved) {
                                 if (activityStarted && sceneRequestInProgress) {
+                                    showHistorySaveWarningIfNeeded(historySaved);
                                     respondToSceneRequest(
                                             getString(R.string.scene_vision_error_response),
-                                            R.string.detail_vision_error
+                                            historySaved
+                                                    ? R.string.detail_vision_error_saved
+                                                    : R.string.detail_vision_error
                                     );
                                 }
                             }
@@ -471,6 +495,16 @@ public final class MainActivity extends ComponentActivity implements Recognition
                 }
             }
         });
+    }
+
+    private void showHistorySaveWarningIfNeeded(boolean historySaved) {
+        if (!historySaved) {
+            Toast.makeText(
+                    this,
+                    R.string.detail_visual_history_save_failed,
+                    Toast.LENGTH_LONG
+            ).show();
+        }
     }
 
     private void respondToSceneRequest(String response, int detailResource) {

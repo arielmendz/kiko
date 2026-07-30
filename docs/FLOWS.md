@@ -169,6 +169,7 @@ sequenceDiagram
     participant Vision as LocalVisionEngine
     participant Model as YOLO26n ONNX verificado
     participant Reply as SpanishSceneDescription
+    participant History as Historial visual privado
     participant Voice as TTS español sin red
 
     Persona->>Session: “Kiko, ¿qué ves?” o ventana de 10 s
@@ -180,28 +181,30 @@ sequenceDiagram
     else Permiso, cámara y modelo verificado disponibles
         Session->>Camera: describe_scene() determinista
         Camera->>Camera: abrir frontal y capturar un frame
-        Camera-->>Session: bitmap solo en memoria
+        Camera-->>Session: bitmap
         Camera->>Camera: cerrar
-        Session->>Vision: bitmap efímero
+        Session->>Vision: bitmap + instante de captura
         Vision->>Model: inferencia ONNX Runtime local
         Model-->>Vision: clases COCO + confianza
         Vision-->>Reply: hasta 3 tipos de objeto
+        Vision->>History: guardar JPEG orientado + respuesta exacta
         Reply-->>Persona: descripción visible en español
         opt Hay voz española instalada sin red
             Reply->>Voice: frase española
             Voice-->>Persona: voz robótica simple
         end
-        Vision->>Vision: descartar bitmap
+        Vision->>Vision: reciclar bitmaps de trabajo
     else Sin permiso o captura fallida
         Session-->>Reply: error recuperable
         Reply-->>Persona: explicación en español
     end
 ```
 
-A normal scene description does not run identity recognition and does not retain
-the frame. YOLO26n is a bounded object detector rather than a scene
-captioner; a future richer local model may replace it without changing the
-explicit permission, ephemeral capture, or no-network boundaries.
+A normal scene description does not run identity recognition. Its capture is
+retained only in the app-private troubleshooting history, where the user can
+delete one record or erase everything. YOLO26n is a bounded object detector
+rather than a scene captioner; a future richer local model may replace it without
+changing the explicit permission, local-only retention, or no-network boundaries.
 
 ## “¿A quién ves?” and face enrollment
 
@@ -290,7 +293,9 @@ sequenceDiagram
 ```
 
 Ordinary conversation is ephemeral. Only confirmed `MemoryItem` records enter
-durable storage, and a remembered scene stores text rather than its camera frame.
+durable memory, and a remembered scene stores text rather than another copy of
+its camera frame. The separate visual troubleshooting history still retains the
+original `describe_scene` capture until the user deletes it.
 
 ## Failure containment
 

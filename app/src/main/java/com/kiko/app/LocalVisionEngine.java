@@ -10,6 +10,7 @@ import android.graphics.Rect;
 import android.graphics.RectF;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 
 import ai.onnxruntime.NodeInfo;
 import ai.onnxruntime.OnnxJavaType;
@@ -32,6 +33,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 
 public final class LocalVisionEngine implements AutoCloseable {
+    private static final String TAG = "KikoVision";
     private static final String INPUT_NAME = "images";
     private static final String OUTPUT_NAME = "output0";
     private static final int MODEL_SIZE = 640;
@@ -46,20 +48,30 @@ public final class LocalVisionEngine implements AutoCloseable {
     private static final int LETTERBOX_COLOR = Color.rgb(114, 114, 114);
 
     public interface Callback {
-        void onDescription(String description);
+        void onDescription(String description, boolean historySaved);
 
-        void onModelMissing();
+        void onModelMissing(boolean historySaved);
 
-        void onError();
+        void onError(boolean historySaved);
     }
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final ModelDownloadStore downloads;
+    private final VisualHistoryStore visualHistory;
+    private final String modelMissingDescription;
+    private final String visionErrorDescription;
     private volatile boolean closed;
 
     public LocalVisionEngine(Context context) {
         downloads = new ModelDownloadStore(context);
+        visualHistory = new VisualHistoryStore(context);
+        modelMissingDescription = context.getString(
+                R.string.scene_vision_model_missing_response
+        );
+        visionErrorDescription = context.getString(
+                R.string.scene_vision_error_response
+        );
     }
 
     public boolean isModelReady() {
@@ -69,19 +81,29 @@ public final class LocalVisionEngine implements AutoCloseable {
                 == ModelDownloadStore.DownloadSnapshot.State.DOWNLOADED;
     }
 
-    public void describe(Bitmap bitmap, int rotationDegrees, Callback callback) {
+    public void describe(
+            Bitmap bitmap,
+            int rotationDegrees,
+            long capturedAtEpochMillis,
+            Callback callback
+    ) {
         if (closed) {
             bitmap.recycle();
-            callback.onError();
+            callback.onError(false);
             return;
         }
 
         try {
-            executor.execute(() -> analyze(bitmap, rotationDegrees, callback));
+            executor.execute(() -> analyze(
+                    bitmap,
+                    rotationDegrees,
+                    capturedAtEpochMillis,
+                    callback
+            ));
         } catch (RejectedExecutionException error) {
             bitmap.recycle();
             if (!closed) {
-                callback.onError();
+                callback.onError(false);
             }
         }
     }
@@ -92,23 +114,42 @@ public final class LocalVisionEngine implements AutoCloseable {
         executor.shutdownNow();
     }
 
-    private void analyze(Bitmap source, int rotationDegrees, Callback callback) {
+    private void analyze(
+            Bitmap source,
+            int rotationDegrees,
+            long capturedAtEpochMillis,
+            Callback callback
+    ) {
         Bitmap oriented = null;
         Bitmap modelBitmap = null;
         try {
+            oriented = rotate(source, rotationDegrees);
             ModelSpec model = ModelCatalog.findById(ModelCatalog.VISION_MODEL_ID);
             if (model == null || !isModelReady()) {
-                postModelMissing(callback);
+                postModelMissing(
+                        callback,
+                        saveHistory(
+                                oriented,
+                                capturedAtEpochMillis,
+                                modelMissingDescription
+                        )
+                );
                 return;
             }
 
             File modelFile = downloads.getModelFile(model);
             if (modelFile == null) {
-                postModelMissing(callback);
+                postModelMissing(
+                        callback,
+                        saveHistory(
+                                oriented,
+                                capturedAtEpochMillis,
+                                modelMissingDescription
+                        )
+                );
                 return;
             }
 
-            oriented = rotate(source, rotationDegrees);
             modelBitmap = letterbox(oriented);
             List<SceneLabel> labels;
             OrtEnvironment environment = OrtEnvironment.getEnvironment();
@@ -146,15 +187,27 @@ public final class LocalVisionEngine implements AutoCloseable {
             }
 
             String description = SpanishSceneDescription.describe(labels);
+            boolean historySaved = saveHistory(
+                    oriented,
+                    capturedAtEpochMillis,
+                    description
+            );
             mainHandler.post(() -> {
                 if (!closed) {
-                    callback.onDescription(description);
+                    callback.onDescription(description, historySaved);
                 }
             });
         } catch (Exception | LinkageError error) {
+            Log.e(TAG, "Local scene analysis failed", error);
+            Bitmap historyBitmap = oriented != null ? oriented : source;
+            boolean historySaved = saveHistory(
+                    historyBitmap,
+                    capturedAtEpochMillis,
+                    visionErrorDescription
+            );
             mainHandler.post(() -> {
                 if (!closed) {
-                    callback.onError();
+                    callback.onError(historySaved);
                 }
             });
         } finally {
@@ -166,10 +219,24 @@ public final class LocalVisionEngine implements AutoCloseable {
         }
     }
 
-    private void postModelMissing(Callback callback) {
+    private boolean saveHistory(
+            Bitmap bitmap,
+            long capturedAtEpochMillis,
+            String description
+    ) {
+        try {
+            visualHistory.save(bitmap, capturedAtEpochMillis, description);
+            return true;
+        } catch (Exception error) {
+            Log.e(TAG, "Could not save visual history capture", error);
+            return false;
+        }
+    }
+
+    private void postModelMissing(Callback callback, boolean historySaved) {
         mainHandler.post(() -> {
             if (!closed) {
-                callback.onModelMissing();
+                callback.onModelMissing(historySaved);
             }
         });
     }

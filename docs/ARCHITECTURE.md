@@ -23,13 +23,17 @@ Scene-perception components:
   camera immediately.
 - `LocalVisionEngine` runs the verified YOLO26n ONNX artifact through ONNX Runtime
   1.28.0 on CPU off the UI thread, validates the expected tensor contract,
-  letterboxes and normalizes the frame, emits thresholded COCO labels, and
-  recycles every bitmap.
+  letterboxes and normalizes the frame, emits thresholded COCO labels, saves the
+  oriented capture and result, and then recycles every working bitmap.
 - `Yolo26DetectionParser` maps the pinned model's contiguous COCO category indices
   and rejects malformed boxes, confidence values, classes, or tensor widths in
   platform-independent code.
 - `SpanishSceneDescription` translates, counts, and limits those structured
   labels into a short Spanish sentence. It does not accept free-form model output.
+- `VisualHistoryStore` owns app-private JPEG and metadata records, atomic
+  publication, newest-first listing, targeted deletion, and erase-all.
+- `VisualHistoryActivity` renders those records with the exact response attached
+  to each capture and exposes both deletion controls.
 - `OfflineSpanishSpeaker` selects an installed Spanish `Voice` only when Android
   reports that it does not require a network connection. Lower pitch and speech
   rate provide the current simple robotic effect.
@@ -75,10 +79,12 @@ flowchart LR
     Command["“Kiko, ¿qué ves?”"] --> Matcher["SpanishCommandMatcher"]
     Matcher --> Permission["Permiso CAMERA explícito"]
     Permission --> Camera["FrontCameraCapture"]
-    Camera --> Frame["Bitmap solo en memoria"]
+    Camera --> Frame["Bitmap orientado"]
     Model["YOLO26n ONNX<br/>descargado y verificado"] --> Vision["LocalVisionEngine + ONNX Runtime CPU"]
     Frame --> Vision
     Vision --> Description["SpanishSceneDescription"]
+    Vision --> History["VisualHistoryStore<br/>JPEG + respuesta"]
+    History --> Gallery["Historial visual<br/>ver / borrar uno / borrar todo"]
     Description --> Screen["Pantalla"]
     Description --> Voice["TTS español sin red"]
     Vision --> Discard["Reciclar bitmap"]
@@ -120,9 +126,13 @@ MIT-licensed ONNX Runtime Android API directly on CPU; it does not use ML Kit,
 MediaPipe Tasks, a cloud API, or an SDK telemetry layer. The YOLO26n weights are
 AGPL-3.0, so the repository is licensed AGPL-3.0-only; proprietary or commercial
 deployment requires a new license review and an applicable Ultralytics Enterprise
-license. Platform TTS remains a temporary dependency. No current scene frame,
-crop, embedding, or label is written to storage, and the `person` class is not
-identity.
+license. Platform TTS remains a temporary dependency. Each completed explicit
+“¿qué ves?” capture is written as a JPEG plus bounded metadata under Kiko's
+internal app-private files directory. The image and exact result remain local,
+are removed by per-item deletion, erase-all, or app uninstall, and require no
+broad storage permission. Kiko does not impose an automatic retention cap in the
+current troubleshooting milestone. The `person` class remains an object label,
+not identity or face enrollment.
 
 Android's `SpeechRecognizer` remains an utterance-oriented bootstrap dependency,
 so microphone sessions can visibly cycle during silence. Reliable continuous
@@ -229,11 +239,12 @@ flowchart TD
   readings; raw high-rate streams do not enter the language model context.
 - The current `LocalVisionEngine` letterboxes a camera frame to `640 × 640`,
   converts RGB pixels into normalized NCHW float input, and converts the pinned
-  YOLO26n end-to-end output into thresholded COCO object labels. A future
-  replacement may produce a richer compact structured Spanish observation, but
-  must remain app-owned, local, and free of SDK telemetry. Identity comes from a
-  separate future face detector and embedding matcher, not from the `person`
-  object class or a vision-language model.
+  YOLO26n end-to-end output into thresholded COCO object labels. It stores the
+  original-resolution oriented capture rather than the letterboxed inference
+  bitmap. A future replacement may produce a richer compact structured Spanish
+  observation, but must remain app-owned, local, and free of SDK telemetry.
+  Identity comes from a separate future face detector and embedding matcher, not
+  from the `person` object class or a vision-language model.
 - `BodyBleTransport` is the future Android BLE-central boundary. It owns discovery,
   bonding, GATT connection state, MTU negotiation, protocol version negotiation,
   heartbeats, reconnects, and event indications.
@@ -282,10 +293,13 @@ local full-text search over introducing another embedding model.
 
 Face recognition stores an encrypted identity record and one or more face
 embeddings after explicit naming and an on-screen owner confirmation while the
-phone is unlocked. Camera frames used for scene description or matching are
-discarded by default. Facts, names, embeddings, and later indexes remain local,
-use keys protected by Android Keystore, and are removed through targeted forget
-commands, erase-all, or app uninstall.
+phone is unlocked. Explicit “¿qué ves?” troubleshooting captures are the narrow
+exception to default camera ephemerality: every completed capture is retained
+locally with its result and stays inspectable and erasable. Future face matching
+and enrollment source photos remain discarded by default. Facts, names,
+embeddings, and later indexes remain local, use keys protected by Android
+Keystore, and are removed through targeted forget commands, erase-all, or app
+uninstall.
 
 Face matches are presentation-only hints, never authentication. They cannot
 authorize body actions, disclose private memories, or enter owner settings.
@@ -353,7 +367,8 @@ defaults until the selected hardware is documented and calibrated.
 
 - Plain JVM unit tests cover normalization and wake-word boundaries.
 - Plain JVM unit tests cover the “¿qué ves?” grammar and deterministic Spanish
-  response composition.
+  response composition, plus visual-history metadata round trips and malformed
+  record rejection.
 - Standard-library Python unit tests cover strict body-protocol parsing, bounded
   two-servo trajectories, native capability limits, idempotent command IDs,
   deadline rejection, heartbeat watchdog, completion, and emergency stop.
@@ -366,9 +381,9 @@ defaults until the selected hardware is documented and calibrated.
   end-to-end wake-word path.
 - A repeatable device test is still required before microphone behavior can be
   treated as regression-tested. Front-camera capture, ONNX Runtime
-  object-detection results/performance, and offline TTS also require
-  physical-device validation; Android BLE, BlueZ, GPIO, and physical-servo
-  integration remain untested.
+  object-detection results/performance, visual-history persistence/rendering/
+  deletion, and offline TTS also require physical-device validation; Android BLE,
+  BlueZ, GPIO, and physical-servo integration remain untested.
 - Download endpoint probes validate the GGUF magic bytes for all public catalog
   artifacts. Full transfer, cancellation, resumption, and checksum verification
   still require physical-device validation.

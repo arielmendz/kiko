@@ -77,12 +77,18 @@ Kiko:
    selects up to three detected COCO object types;
 5. displays a short Spanish observation and speaks it through an installed
    non-network Spanish TTS voice; and
-6. discards the frame without writing it to storage or creating face memory.
+6. saves the oriented image and the exact Spanish result in private on-device
+   visual history, including an empty-detection or analysis-error result.
+
+The **Historial visual** screen shows every saved capture newest first. The user
+can delete one capture or erase all captures. Records remain until deletion or
+app uninstall; there is intentionally no automatic retention cap in this
+troubleshooting milestone.
 
 If the vision artifact is absent or unverified, Kiko does not open the camera and
 asks the user in Spanish to download it from **Modelos locales**. This is bounded
 object detection, not a free-form scene caption. It does not name people, infer
-identity, retain face data, or execute a vision-language model.
+identity, create face enrollment data, or execute a vision-language model.
 
 ## Current limitations
 
@@ -109,6 +115,10 @@ identity, retain face data, or execute a vision-language model.
 - Spoken output requires an installed Spanish voice that Android marks as not
   requiring a network connection; otherwise the complete answer remains visible.
 - Front-camera capture and Spanish TTS still require physical-device validation.
+- Visual-history rendering, persistence across process restarts, deletion, and
+  storage behavior still require physical-device validation. Because every
+  successful capture is retained until explicit deletion, storage usage can grow
+  without bound.
 - The Raspberry Pi safety core and two-servo simulator exist, but BlueZ
   advertising, GPIO output, hardware calibration, and physical-servo validation
   are not implemented.
@@ -127,8 +137,9 @@ identity, retain face data, or execute a vision-language model.
 2. **Model library (delivered):** securely download and verify pinned local model
    artifacts without executing them.
 3. **Local scene baseline (delivered):** route “¿qué ves?” deterministically,
-   capture one ephemeral front-camera frame, run YOLO26n on-device, and
-   report bounded object detections with an offline Spanish voice.
+   capture one front-camera frame, run YOLO26n on-device, report bounded object
+   detections with an offline Spanish voice, and retain an inspectable,
+   locally erasable troubleshooting record.
 4. **Embodied tool contract:** define typed read-only sensor tools and
    state-changing body tools, plus native validation, confirmation, deadlines,
    and emergency-stop behavior.

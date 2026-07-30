@@ -30,8 +30,10 @@ not implemented yet.
 - Requests camera permission only for that explicit command, captures one
   front-camera still in memory, and releases the camera immediately.
 - Runs YOLO26n through ONNX Runtime on the device and reports up to three detected
-  COCO object types in Spanish. The frame is discarded and never written to
-  storage.
+  COCO object types in Spanish.
+- Saves every completed “¿qué ves?” capture with Kiko's Spanish result in a
+  private, on-device **Historial visual**, including the “nothing recognized” or
+  analysis-error result. Captures can be deleted individually or all at once.
 - Speaks the displayed result with an installed Spanish TTS voice only when that
   voice declares that it does not require a network connection.
 - Offers pinned Gemma 3 1B, Bonsai 1.7B, Qwen3 0.6B, and LFM2.5 350M GGUF
@@ -65,7 +67,9 @@ configuration. Open **Modelos locales** and explicitly download
 **YOLO26n** before trying perception. Grant microphone access, then say
 “Kiko, ¿qué ves?” (or say “Kiko” and then “¿qué ves?” within ten seconds), grant
 camera access, and face the phone's front camera toward the scene. Kiko displays
-the response even if the device has no installed offline Spanish TTS voice.
+the response even if the device has no installed offline Spanish TTS voice. Open
+**Historial visual** on the wake-word screen to inspect the exact saved image and
+label, delete one capture, or erase the complete history.
 
 If a Spanish model needs to be downloaded, leave the phone online until the system
 speech service completes it, then close and reopen Kiko. Audio recognition remains
@@ -73,10 +77,11 @@ on-device.
 
 Open **Modelos locales** from the wake-word screen to manage language and vision
 model downloads. Kiko requests network access solely for user-initiated
-model-file downloads; it does not send prompts, microphone audio, frames, labels,
-or inference data anywhere. Gemma requires accepting Google's Gemma terms on
-Hugging Face and entering a read-only Hugging Face token. The token is encrypted
-with Android Keystore.
+model-file downloads; it does not send prompts, microphone audio, camera images,
+labels, or inference data anywhere. Visual-history JPEGs and labels remain in
+Kiko's private internal storage until the user deletes them or uninstalls the app.
+Gemma requires accepting Google's Gemma terms on Hugging Face and entering a
+read-only Hugging Face token. The token is encrypted with Android Keystore.
 
 The five catalog files require 2,130,544,293 bytes in total. Downloads continue
 through Android's system download manager if the model screen closes. Details and
@@ -115,8 +120,12 @@ PYTHONPATH=body/raspberry-pi/src \
 - `app/src/main/java/com/kiko/app/FrontCameraCapture.java` owns one-shot in-memory
   front-camera capture and camera release.
 - `app/src/main/java/com/kiko/app/LocalVisionEngine.java` produces the current
-  YOLO26n object detections through direct local ONNX Runtime inference without
-  storing the frame.
+  YOLO26n object detections through direct local ONNX Runtime inference and hands
+  the oriented capture and result to the private visual-history store.
+- `app/src/main/java/com/kiko/app/VisualHistoryStore.java` atomically stores,
+  lists, and deletes private capture/label records.
+- `app/src/main/java/com/kiko/app/VisualHistoryActivity.java` displays every saved
+  capture and provides per-item and erase-all controls.
 - `app/src/main/java/com/kiko/app/Yolo26DetectionParser.java` validates the pinned
   model's end-to-end rows, class indices, and confidence threshold outside Android
   UI state.

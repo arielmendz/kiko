@@ -89,8 +89,11 @@ admits uncertainty instead of inventing current facts.
 
 `describe_scene` activates the camera only after the explicit command, captures a
 bounded still frame, passes it to the current `LocalVisionEngine`, and releases
-the camera. Frames are not retained by default. The response describes only the
-supported visible properties in Spanish and does not infer a person's identity.
+the camera. Every completed capture and its exact Spanish response are retained
+in Kiko's private visual troubleshooting history until the user deletes that
+record, erases all history, or uninstalls the app. The response describes only
+the supported visible properties in Spanish and does not infer a person's
+identity.
 
 The delivered first iteration recognizes “¿qué ves?” deterministically in the
 same utterance as “Kiko” or during a ten-second post-wake window. It uses the front
@@ -131,9 +134,10 @@ user says only “recuerda esto” and the current session does not contain one
 unambiguous candidate, Kiko asks “¿Qué quieres que recuerde?”.
 
 `remember_observation` may store the latest textual result from `VisionEngine`
-after confirmation. It does not store the camera frame. Memory resolution never
-searches arbitrary past conversation and never silently chooses between multiple
-candidates.
+after confirmation. It does not create a camera-frame memory record; the
+underlying `describe_scene` capture may already exist separately in visual
+troubleshooting history. Memory resolution never searches arbitrary past
+conversation and never silently chooses between multiple candidates.
 
 The first implementation should use structured records and local full-text search
 before adding a separate embedding model:

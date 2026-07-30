@@ -42,3 +42,7 @@
   deterministic parser tests.
 - License Kiko under AGPL-3.0-only to comply with the YOLO26n model license;
   proprietary or commercial use requires a separate Ultralytics license review.
+- Add a private visual troubleshooting history that saves every completed
+  “¿qué ves?” image with Kiko's exact result, displays records newest first, and
+  supports individual deletion and erase-all without adding network or storage
+  permissions.

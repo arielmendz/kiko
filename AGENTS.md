@@ -23,10 +23,11 @@ The current milestones are:
 3. the repository contains a transport-independent Raspberry Pi body safety core
    and simulator, but no Android BLE, BlueZ, GPIO, or physical-servo integration;
    and
-4. after “kiko”, “¿qué ves?” captures one ephemeral front-camera still and
+4. after “kiko”, “¿qué ves?” captures one front-camera still and
    runs a downloaded, SHA-verified YOLO26n ONNX artifact locally through ONNX
    Runtime, then reports bounded COCO object detections through Spanish screen
-   text and an offline-only voice; and
+   text and an offline-only voice, and saves the image plus result in an
+   inspectable, locally erasable troubleshooting history; and
 5. no language-model or vision-language-model inference runs yet; local
    object-detection inference does.
 
@@ -84,8 +85,10 @@ architecture.
 - Preserve Spanish user-facing copy unless a product change explicitly introduces
   localization.
 - Durable fact or face memory must be explicit, inspectable, locally erasable, and
-  encrypted at rest. Do not retain camera frames by default or use a language
-  model to guess identity.
+  encrypted at rest. The explicit “¿qué ves?” flow retains every completed frame
+  in private, inspectable, locally erasable troubleshooting history; other camera
+  flows must not retain frames by default. Never use a language model to guess
+  identity.
 - Face matches are toy responses, never authentication. Enrollment, identity
   deletion, and erase-all require an unlocked on-screen owner control; face output
   must not authorize actions or disclose private memory.
