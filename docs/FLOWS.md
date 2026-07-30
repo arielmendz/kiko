@@ -88,44 +88,49 @@ sequenceDiagram
     actor Persona
     participant Parser as Parser español
     participant Policy as ActionPolicy
-    participant USB as UsbBodyTransport
-    participant Body as Firmware del cuerpo
+    participant BLE as BodyBleTransport
+    participant Body as Raspberry Pi BodyController
     participant Stop as EmergencyStopController
 
     Persona->>Parser: “Da tres pasos”
     Parser->>Policy: move_steps(count=3)
-    Policy->>USB: GET_CAPABILITIES
-    USB->>Body: GET_CAPABILITIES
-    Body-->>USB: límites + versión + rutinas
-    USB-->>Policy: BodyCapabilities
+    Policy->>BLE: GET_CAPABILITIES
+    BLE->>Body: escritura GATT
+    Body-->>BLE: límites + versión + rutinas
+    BLE-->>Policy: BodyCapabilities
 
     alt Cantidad permitida
-        Policy->>USB: MOVE_STEPS(3, commandId, deadline)
-        USB->>Body: comando enmarcado
-        Body-->>USB: ACCEPTED(commandId)
-        Body-->>USB: COMPLETED(commandId, telemetry)
-        USB-->>Persona: “Di tres pasos”
+        Policy->>BLE: MOVE_STEPS(3, commandId, timeout)
+        BLE->>Body: escritura GATT
+        Body-->>BLE: ACCEPTED(commandId)
+        loop Mientras haya movimiento
+            BLE->>Body: HEARTBEAT
+            Body-->>BLE: ALIVE
+        end
+        Body-->>BLE: COMPLETED(commandId)
+        BLE-->>Persona: “Di tres pasos”
     else Fuera de rango o cuerpo ausente
         Policy-->>Persona: aclaración o rechazo en español
     end
 
     opt La persona dice “para” durante el movimiento
         Persona->>Stop: “para”
-        Stop->>USB: STOP(stopCommandId)
-        USB->>Body: STOP inmediato
-        Body-->>USB: STOPPED
-        USB-->>Persona: “Me detuve”
+        Stop->>BLE: STOP(stopCommandId)
+        BLE->>Body: escritura GATT inmediata
+        Body-->>BLE: STOPPED
+        BLE-->>Persona: “Me detuve”
     end
 
     Persona->>Parser: “Baila”
     Parser->>Policy: dance(routineId="default")
-    Policy->>USB: DANCE(routineId, commandId, deadline)
-    USB->>Body: rutina nativa allowlisted
-    Body-->>USB: COMPLETED o STOPPED
+    Policy->>BLE: DANCE(routineId, commandId, timeout)
+    BLE->>Body: rutina nativa allowlisted
+    Body-->>BLE: COMPLETED o STOPPED
 ```
 
-The app never sends free-form joint or motor values. The firmware executes a
-bounded routine and independently stops when its watchdog or deadline expires.
+The app never sends free-form joint or motor values. The Raspberry Pi executes a
+bounded two-servo routine and independently stops when its BLE watchdog or
+deadline expires.
 
 ## “¿Qué sabes de X?”
 
@@ -291,7 +296,7 @@ flowchart TD
     Stop --> Explain
 
     Emergency["“para” o botón STOP"] --> Stop
-    Disconnect["USB desconectado"] --> Stop
+    Disconnect["BLE desconectado o sin heartbeat"] --> Stop
     Lifecycle["App detenida"] --> Stop
     InvalidTelemetry["Telemetría inválida"] --> Stop
 ```

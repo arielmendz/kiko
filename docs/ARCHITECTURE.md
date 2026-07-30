@@ -55,6 +55,8 @@ loop and display an actionable state.
 - Compile/target SDK: 37.
 - Permissions: `RECORD_AUDIO` for the wake word and `INTERNET` for explicit model
   artifact downloads.
+- Bluetooth permissions are intentionally absent until Android body discovery and
+  control are implemented.
 - Network activity is forbidden for recognition, prompts, inference, analytics,
   and silent catalog fetching.
 - Preferred recognition language: `es-US`, falling back to another installed
@@ -116,21 +118,23 @@ flowchart TD
 
     Registry --> Memory["MemoryStore"]
     Registry --> Perception["PerceptionCoordinator"]
-    Registry --> USB["UsbBodyTransport"]
+    Registry --> BLE["BodyBleTransport"]
 
     Memory --> Facts["Fact / Observation Memory"]
     Memory --> Faces["FaceRegistry cifrado"]
     Perception --> Sensors["SensorAdapters"]
     Perception --> Vision["VisionEngine local"]
-    USB <--> Body["Cuerpo + BodyTelemetry"]
+    BLE <--> Pi["Raspberry Pi<br/>servicio BLE + seguridad"]
+    Pi --> Motion["MotionPlanner + ServoPairDriver"]
+    Motion --> Servos["2 servos<br/>patas no articuladas"]
 
     Memory --> Reply["ResponseComposer español"]
     Perception --> Reply
-    USB --> Reply
+    BLE --> Reply
     Reply --> Screen["Pantalla"]
     Reply --> Speech["Voz española local opcional"]
 
-    Stop["EmergencyStopController"] ==>|"STOP inmediato"| USB
+    Stop["EmergencyStopController"] ==>|"STOP inmediato"| BLE
 ```
 
 - `AudioSource` owns microphone frames and buffering.
@@ -168,14 +172,22 @@ flowchart TD
 - `VisionEngine` optionally converts a camera frame into a compact structured
   Spanish observation. Identity comes from a dedicated local face detector and
   embedding matcher, not from the vision-language model.
-- `UsbBodyTransport` owns discovery, permissions, framing, version negotiation,
-  reconnects, and telemetry.
+- `BodyBleTransport` is the future Android BLE-central boundary. It owns discovery,
+  bonding, GATT connection state, MTU negotiation, protocol version negotiation,
+  heartbeats, reconnects, and event indications.
+- The Raspberry Pi body service is the BLE peripheral and final physical safety
+  authority. Its transport-independent `BodyController` validates semantic
+  commands, enforces idempotency, deadlines and a connection watchdog, and selects
+  only body-owned motion plans.
+- `MotionPlanner` defines bounded seal-like strides and allowlisted dances for two
+  non-articulated servo legs. A future `ServoPairDriver` owns GPIO, calibrated
+  pulse widths, angle clamps, neutral position, and immediate stop.
 
 The model never owns Android permissions and never writes directly to a sensor,
-camera, location, or USB API. No UI class should eventually contain model
-inference, sensor acquisition, safety policy, or USB protocol logic. The research
-and benchmark gate are detailed in `docs/MODEL_RESEARCH.md`. End-to-end Mermaid
-sequences for each command family are in `docs/FLOWS.md`.
+camera, location, BLE API, or servo driver. No UI class should eventually contain
+model inference, sensor acquisition, safety policy, or body protocol logic. The
+research and benchmark gate are detailed in `docs/MODEL_RESEARCH.md`. End-to-end
+Mermaid sequences for each command family are in `docs/FLOWS.md`.
 
 ## Command routing
 
@@ -232,26 +244,55 @@ flowchart LR
     App --> Steps["MOVE_STEPS<br/>count, commandId, deadline"]
     App --> Dance["DANCE<br/>routineId, commandId, deadline"]
     Stop["EmergencyStopController"] --> StopCommand["STOP<br/>commandId"]
-    Body["Firmware"] --> Telemetry["GET_TELEMETRY / eventos"]
+    Pi["Raspberry Pi BodyController"] --> Telemetry["CAPABILITIES / eventos"]
 
-    Capabilities --> Transport["UsbBodyTransport"]
+    Capabilities --> Transport["BodyBleTransport"]
     Steps --> Transport
     Dance --> Transport
     StopCommand --> Transport
-    Transport <--> Body
+    Heartbeat["HEARTBEAT"] --> Transport
+    Transport <--> Pi
+    Pi --> Planner["MotionPlanner"]
+    Planner --> Driver["ServoPairDriver"]
+    Driver --> Servos["2 servos"]
 ```
 
 `GET_CAPABILITIES` supplies limits such as `maxStepsPerCommand`, available dance
 routines, protocol version, and stop support. `ActionPolicy` rejects or asks for
 clarification instead of inventing absent capabilities. Dances are fixed,
-body-tested macros. Disconnect, deadline expiry, invalid telemetry, application
-lifecycle loss, or emergency stop terminates motion. The body firmware should
-also enforce its own command deadline and watchdog so Android process failure
-cannot leave a motor running.
+body-tested macros. Android sends `HEARTBEAT` while motion is active. Missed
+heartbeat, BLE disconnect, deadline expiry, invalid telemetry, application
+lifecycle loss, or emergency stop terminates motion. The Pi independently enforces
+its command deadline and 750 ms link watchdog so Android process failure cannot
+leave a motor running. A reconnect never resumes the interrupted action.
+
+BLE v1 uses a custom GATT service with a write-with-response command
+characteristic and an indicated event characteristic. Messages are strict UTF-8
+JSON envelopes no larger than 512 bytes. Android must negotiate enough ATT MTU
+for a complete message because v1 does not define application-level
+fragmentation. The canonical UUIDs, envelopes, schemas, fixtures, retry rules, and
+bonding requirements are in `protocol/body-protocol.md`.
+
+The monorepo contains distinct deployable boundaries:
+
+- `app/` builds the Android APK;
+- `body/raspberry-pi/` builds and tests the Pi service independently;
+- `protocol/` is the shared versioned contract;
+- `hardware/` records parts, power, wiring, calibration, and mechanical limits;
+  and
+- `integration-tests/` owns Android-to-Pi compatibility and failure cases.
+
+The current Pi bootstrap is deliberately transport-independent and runs with a
+simulated servo pair. It does not yet advertise through BlueZ or drive GPIO. No
+physical angles, pins, pulse widths, or power assumptions become production
+defaults until the selected hardware is documented and calibrated.
 
 ## Verification strategy
 
 - Plain JVM unit tests cover normalization and wake-word boundaries.
+- Standard-library Python unit tests cover strict body-protocol parsing, bounded
+  two-servo trajectories, native capability limits, idempotent command IDs,
+  deadline rejection, heartbeat watchdog, completion, and emergency stop.
 - Catalog tests require four unique entries with immutable revisions, known sizes,
   `.gguf` filenames, and SHA-256 hashes.
 - Android build and lint validate manifest/API integration when an SDK is present.
@@ -259,7 +300,8 @@ cannot leave a motor running.
   hypotheses plus `Kiko`/`Quico` final alternatives, confirming the current
   end-to-end wake-word path.
 - A repeatable device test is still required before microphone behavior can be
-  treated as regression-tested; USB integration remains untested.
+  treated as regression-tested; Android BLE, BlueZ, GPIO, and physical-servo
+  integration remain untested.
 - Download endpoint probes validate the GGUF magic bytes for all public catalog
   artifacts. Full transfer, cancellation, resumption, and checksum verification
   still require physical-device validation.

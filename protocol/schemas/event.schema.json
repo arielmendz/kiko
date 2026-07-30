@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kiko.local/protocol/v1/event.schema.json",
+  "title": "Kiko body event v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocolVersion",
+    "commandId",
+    "type",
+    "data"
+  ],
+  "properties": {
+    "protocolVersion": {
+      "const": 1
+    },
+    "commandId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,64}$"
+    },
+    "type": {
+      "enum": [
+        "CAPABILITIES",
+        "ALIVE",
+        "ACCEPTED",
+        "COMPLETED",
+        "STOPPED",
+        "REJECTED"
+      ]
+    },
+    "data": {
+      "type": "object"
+    }
+  }
+}

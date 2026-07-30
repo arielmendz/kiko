@@ -26,3 +26,6 @@
   explicitly enrolled local face recognition.
 - Add Mermaid component, lifecycle, command, memory, perception, body-control, and
   failure-containment diagrams for the intended architecture.
+- Select BLE instead of USB for the body link and bootstrap monorepo boundaries
+  for the shared GATT protocol, Raspberry Pi safety service, two-servo simulator,
+  hardware documentation, and integration tests.

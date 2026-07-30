@@ -2,8 +2,9 @@
 
 Kiko is an Android application for a local, embodied AI toy. Its final objective
 is to run its intelligence entirely on the Android device, interact in Spanish,
-use local camera/sensor/memory tools, and connect to a physical body over USB. It
-is a personal, noncommercial project.
+use local camera/sensor/memory tools, and connect over Bluetooth Low Energy (BLE)
+to a Raspberry Pi body controlling two servos. It is a personal, noncommercial
+project.
 
 Kiko currently listens with Android's on-device speech recognizer and displays
 **“escuchando!”** whenever it hears the wake word **“kiko”**. It also provides a
@@ -25,10 +26,14 @@ yet.
   downloads with progress, cancellation, deletion, and SHA-256 verification.
 - Stores model files in Kiko's app-specific external directory so uninstalling the
   app removes them without requesting broad storage access.
+- Includes a transport-independent Raspberry Pi body safety core, strict BLE
+  protocol parser, two-servo motion simulator, and deterministic tests.
 
 The current implementation uses the speech recognizer supplied by the Android
 device. A future local-model milestone will replace this platform dependency with
-an app-owned wake-word and inference pipeline.
+an app-owned wake-word and inference pipeline. The body scaffold does not yet
+advertise through BlueZ, drive GPIO, or connect from Android, so the Android app
+does not request Bluetooth permissions yet.
 
 ## Run it
 
@@ -62,6 +67,19 @@ From a configured command line:
 ./gradlew assembleDebug
 ```
 
+Run and test the Raspberry Pi body simulator independently:
+
+```sh
+PYTHONPATH=body/raspberry-pi/src \
+  python3 -m unittest discover -s body/raspberry-pi/tests -v
+
+PYTHONPATH=body/raspberry-pi/src \
+  python3 -m unittest discover -s integration-tests -v
+
+PYTHONPATH=body/raspberry-pi/src \
+  python3 -m kiko_body
+```
+
 ## Project map
 
 - `app/src/main/java/com/kiko/app/MainActivity.java` owns the activity lifecycle,
@@ -77,11 +95,17 @@ From a configured command line:
 - `docs/MODELS.md` records exact artifacts, licenses, and authentication
   requirements.
 - `docs/MODEL_RESEARCH.md` evaluates local tool-calling and vision models for
-  sensors and the USB-connected body.
+  sensors and the BLE-connected body.
 - `docs/COMMANDS.md` defines the Spanish command, memory, face-recognition, and
   toy-safety contract.
 - `docs/FLOWS.md` contains Mermaid architecture sequences for each supported toy
   behavior and its failure paths.
+- `body/raspberry-pi/` contains the independently deployable body safety core,
+  simulated motion driver, GATT boundary, and tests.
+- `protocol/` is the shared, versioned BLE command and event contract.
+- `hardware/` records the two-servo body, parts, wiring, calibration, and power
+  decisions before physical integration.
+- `integration-tests/` defines cross-device and failure-case acceptance tests.
 - `docs/PRODUCT.md` defines the product goal, current milestone, and roadmap.
 - `docs/ARCHITECTURE.md` records the present design and intended architectural
   boundaries.

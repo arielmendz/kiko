@@ -1,0 +1,7 @@
+{
+  "protocolVersion": 1,
+  "commandId": "fixture-capabilities-1",
+  "type": "GET_CAPABILITIES",
+  "arguments": {},
+  "timeoutMs": 1000
+}

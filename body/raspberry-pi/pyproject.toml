@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kiko-body"
+version = "0.1.0"
+description = "Safety controller for Kiko's Raspberry Pi two-servo body"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+kiko-body-simulator = "kiko_body.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

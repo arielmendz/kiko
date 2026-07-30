@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kiko.local/protocol/v1/command.schema.json",
+  "title": "Kiko body command v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocolVersion",
+    "commandId",
+    "type",
+    "arguments",
+    "timeoutMs"
+  ],
+  "properties": {
+    "protocolVersion": {
+      "const": 1
+    },
+    "commandId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,64}$"
+    },
+    "type": {
+      "enum": [
+        "GET_CAPABILITIES",
+        "MOVE_STEPS",
+        "DANCE",
+        "HEARTBEAT",
+        "STOP"
+      ]
+    },
+    "arguments": {
+      "type": "object"
+    },
+    "timeoutMs": {
+      "type": "integer",
+      "minimum": 100,
+      "maximum": 10000
+    }
+  }
+}

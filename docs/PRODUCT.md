@@ -4,9 +4,10 @@
 
 Kiko is the mind of a physical companion toy: an Android application that runs
 local AI models, observes phone sensors, remembers user-provided facts and
-enrolled faces, and connects to a body through USB. The completed product
-interacts in Spanish and must not depend on cloud inference for its core
-intelligence.
+enrolled faces, and connects over Bluetooth Low Energy (BLE) to a Raspberry Pi
+body controlling two servos. The servos act as crude, non-articulated legs that
+move the toy with a seal-like motion. The completed product interacts in Spanish
+and must not depend on cloud inference for its core intelligence.
 
 Kiko is a personal, noncommercial project. A future decision to distribute it
 commercially requires a new review of every model, dataset, dependency, privacy
@@ -71,7 +72,11 @@ This phase downloads models but deliberately does not load or execute them.
   silence; it is not a production-quality continuous wake-word detector.
 - The current wake-word mechanism is a bootstrap dependency on an Android platform
   service, not the final app-owned local model.
-- No language-model inference or USB communication is implemented yet.
+- No language-model inference or Android-to-body BLE communication is implemented
+  yet.
+- The Raspberry Pi safety core and two-servo simulator exist, but BlueZ
+  advertising, GPIO output, hardware calibration, and physical-servo validation
+  are not implemented.
 - Downloaded models are removed when Kiko is uninstalled because they live in the
   app-specific external files directory.
 - Bonsai's Q1 format requires Prism ML's specialized llama.cpp kernels; selecting
@@ -95,8 +100,9 @@ This phase downloads models but deliberately does not load or execute them.
    streaming audio capture and a bundled wake-word model.
 6. **Local action router:** benchmark and run a Kiko-specific FunctionGemma 270M
    fine-tune and larger tool-capable baselines on supported Android hardware.
-7. **USB body link:** define a versioned command/telemetry protocol and communicate
-   through Android USB host APIs.
+7. **BLE body link (scaffolded):** finish the Android BLE central and Raspberry Pi
+   BlueZ peripheral around the versioned GATT command/event protocol, bonding,
+   capability negotiation, heartbeats, reconnects, and emergency stop.
 8. **Local memory:** store confirmed facts and explicitly enrolled face embeddings
    with inspect, forget, and erase-all controls.
 9. **Local vision:** describe explicit still captures and recognize only locally
@@ -112,7 +118,8 @@ default.
 
 - Background or always-on listening.
 - Cloud speech recognition or cloud AI.
-- USB device discovery or control.
+- Android BLE discovery, bonding, or body control.
+- Raspberry Pi BlueZ advertising, GPIO servo output, or physical movement.
 - Language-model inference or conversation. The system speech service may download
   its own Spanish recognition pack, and the model library downloads only artifacts
   explicitly selected by the user.

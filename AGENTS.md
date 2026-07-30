@@ -12,17 +12,20 @@ Kiko's final objective is an Android application that:
 3. behaves as a personal, noncommercial physical toy that interacts in Spanish;
 4. remembers explicitly supplied facts and explicitly enrolled faces locally;
 5. observes device sensors through typed tools; and
-6. connects to and controls a physical body over USB through a native safety
-   boundary.
+6. connects over Bluetooth Low Energy to a Raspberry Pi body that controls two
+   servos through a native safety boundary.
 
 The current milestones are:
 
 1. while the foreground wake-word screen hears “kiko”, it shows “escuchando!”;
 2. users can download, verify, inspect, cancel, and delete the documented local
    GGUF model artifacts; and
-3. no language-model inference runs yet.
+3. the repository contains a transport-independent Raspberry Pi body safety core
+   and simulator, but no Android BLE, BlueZ, GPIO, or physical-servo integration;
+   and
+4. no language-model inference runs yet.
 
-Do not silently weaken the local-first or USB-body goals. Temporary platform
+Do not silently weaken the local-first or BLE-body goals. Temporary platform
 dependencies must be identified as such in `README.md`, `docs/PRODUCT.md`, and
 `docs/ARCHITECTURE.md`.
 
@@ -58,12 +61,15 @@ architecture.
 - Keep catalog artifacts pinned to immutable upstream revisions and expected
   SHA-256 hashes. Review source, license, filename, size, and runtime compatibility
   before changing any entry.
-- Keep wake-word detection, inference, USB transport, and UI state as separate
+- Keep wake-word detection, inference, BLE transport, and UI state as separate
   boundaries so each can be replaced and tested independently.
 - Treat model output as untrusted. Models may propose typed tool calls, but native
   code must own Android permissions, schema validation, physical limits,
   confirmations, deadlines, and emergency-stop behavior. Never connect free-form
-  model output directly to a sensor, camera, location, or USB API.
+  model output directly to a sensor, camera, location, BLE API, or servo driver.
+- The Raspberry Pi owns servo calibration, bounded native trajectories, the
+  motion watchdog, connection-loss handling, and the final physical stop. Android
+  sends semantic commands only; it never sends model-generated angles or PWM.
 - Request only permissions needed by implemented behavior.
 - Never commit secrets, signing keys, generated build output, local SDK paths, or
   model binaries without an explicit artifact strategy.

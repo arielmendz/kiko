@@ -1,0 +1,15 @@
+{
+  "protocolVersion": 1,
+  "commandId": "fixture-capabilities-1",
+  "type": "CAPABILITIES",
+  "data": {
+    "protocolVersion": 1,
+    "maxStepsPerCommand": 6,
+    "routineIds": [
+      "seal_wiggle"
+    ],
+    "supportsStop": true,
+    "linkWatchdogMs": 750,
+    "servoCount": 2
+  }
+}

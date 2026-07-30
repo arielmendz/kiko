@@ -69,7 +69,7 @@ hardware-specific evaluation is the deciding test.
 
 ## Camera and sensor strategy
 
-Accelerometers, gyroscopes, GPS, battery state, and USB telemetry are numeric or
+Accelerometers, gyroscopes, GPS, battery state, and body telemetry are numeric or
 structured signals. Native Android code should summarize them deterministically;
 an LLM should not consume raw high-frequency streams.
 
@@ -93,13 +93,14 @@ voice/text
   -> ToolRegistry
        -> Android sensor adapters
        -> VisionEngine -> camera adapter
-       -> UsbBodyTransport
+       -> BodyBleTransport
   -> structured tool result
   -> ActionRouter
 ```
 
-The model never receives Android permissions and never writes directly to a USB
-endpoint. Native adapters own permissions, sampling, timeouts, and lifecycle.
+The model never receives Android permissions and never writes directly to a BLE
+characteristic or servo driver. Native adapters own permissions, sampling,
+timeouts, and lifecycle.
 
 ## Physical-action safety contract
 
@@ -112,7 +113,8 @@ action reaches the body:
 4. require an explicit confirmation for actions classified as hazardous;
 5. attach command IDs, deadlines, and idempotency behavior;
 6. provide a native emergency stop that bypasses the model;
-7. stop motion on timeout, USB disconnect, app lifecycle loss, or invalid
+7. stop motion on timeout, missed BLE heartbeat, disconnect, app lifecycle loss,
+   or invalid
    telemetry; and
 8. retain a local, privacy-preserving audit record suitable for debugging.
 
@@ -127,8 +129,8 @@ outside the initial acceptance criteria. The suite should contain:
 
 - direct, indirect, ambiguous, and incomplete commands;
 - correct no-tool responses and irrelevant-tool traps;
-- permission denied, sensor unavailable, stale GPS, camera failure, and USB
-  disconnect cases;
+- permission denied, sensor unavailable, stale GPS, camera failure, and BLE
+  disconnect or missed-heartbeat cases;
 - boundary values and malicious attempts to exceed motion limits;
 - multi-turn clarification and tool-result handling;
 - paraphrases from actual on-device speech recognition; and
@@ -169,4 +171,4 @@ license, format, parser, runtime, and on-device results are known.
 - [LFM2.5-VL-450M model card](https://huggingface.co/LiquidAI/LFM2.5-VL-450M)
 - [Gemma 3n overview](https://ai.google.dev/gemma/docs/gemma-3n)
 - [Android sensor framework](https://developer.android.com/develop/sensors-and-location/sensors/sensors_overview)
-- [Android USB host overview](https://developer.android.com/develop/connectivity/usb/host)
+- [Android Bluetooth Low Energy overview](https://developer.android.com/develop/connectivity/bluetooth/ble/ble-overview)

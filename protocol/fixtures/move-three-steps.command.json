@@ -1,0 +1,9 @@
+{
+  "protocolVersion": 1,
+  "commandId": "fixture-move-3",
+  "type": "MOVE_STEPS",
+  "arguments": {
+    "count": 3
+  },
+  "timeoutMs": 5000
+}
