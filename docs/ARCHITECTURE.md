@@ -3,9 +3,9 @@
 ## Current design
 
 The application is one Android app module with wake-word, scene-perception,
-encrypted face-memory, encrypted structured person/pet memory, and
-model-management areas. Pet memory is stored independently from person and face
-data.
+encrypted face-memory, encrypted structured person/pet memory, constrained local
+sleep maintenance, and model-management areas. Pet memory is stored independently
+from person and face data.
 
 Wake-word components:
 
@@ -97,6 +97,25 @@ Pet-memory components:
 - `SpanishPetMemoryResponses` composes every answer solely from structured fields
   and explicitly reports missing pet data.
 
+Sleep-maintenance components:
+
+- `SleepMaintenanceActivity` is the unlocked owner control for opt-in automatic
+  scheduling, one requested run, cancellation, current state, and the latest
+  aggregate report.
+- `SleepMaintenanceScheduler` creates unique WorkManager 2.11.2 requests with
+  charging, idle, battery-not-low, and storage-not-low constraints and explicitly
+  requires no network. Automatic mode uses an inexact 24-hour periodic request;
+  manual scheduling remains deferred by the same constraints.
+- `SleepMaintenanceWorker` rejects severe-or-worse thermal state, consolidates
+  person and pet registries, validates the face registry, and never initializes
+  speech, camera, inference, download, BLE, or body components.
+- `StructuredMemoryConsolidator` is platform-independent. It merges duplicate
+  canonical records using most-recent replacement semantics, fills missing
+  fields from older duplicates, deduplicates equivalent likes, and refuses a
+  merge that would exceed twenty distinct likes.
+- `SleepMaintenanceReportStore` persists only mode/state timestamps and aggregate
+  counts. Reports contain no names, facts, images, embeddings, or utterances.
+
 Model-management components:
 
 - `ModelCatalog` defines immutable upstream GGUF and ONNX artifacts, their
@@ -179,6 +198,29 @@ update an encrypted registry, preventing an incomplete phrase such as “la comi
 favorita de Pedro es la…” from being stored. Pet parsing runs first because its
 species-qualified subjects would otherwise resemble multiword person names.
 
+The sleep-maintenance flow is a separate native boundary:
+
+```mermaid
+flowchart LR
+    Owner["Sueño<br/>activar o programar"] --> Scheduler["WorkManager 2.11.2"]
+    Scheduler --> Constraints{"cargando + inactivo<br/>batería/storage + térmico"}
+    Constraints -- "seguro" --> Worker["SleepMaintenanceWorker"]
+    Worker --> People["PersonMemoryStore<br/>validar + consolidar"]
+    Worker --> Pets["PetMemoryStore<br/>validar + consolidar"]
+    Worker --> Faces["FaceIdentityStore<br/>solo validar"]
+    People --> Report["informe local<br/>solo conteos"]
+    Pets --> Report
+    Faces --> Report
+    Report --> Owner
+```
+
+Automatic sleep is disabled until the unlocked owner enables it. A requested run
+is also constrained rather than immediate. Each structured registry publishes
+its own encrypted update atomically; decryption or validation failure never
+replaces that registry and produces a visible failed report. There is no
+cross-registry transaction, so a prior registry may already have completed safe
+maintenance if a later independent registry fails.
+
 The wake word opens a ten-second command window. Starting perception cancels the
 speech recognizer so Kiko cannot hear its own TTS. Leaving the activity cancels
 camera and voice work. Permission denial, missing rear camera, capture failure,
@@ -205,6 +247,13 @@ person, and enrollment does not begin.
 - Person/pet-memory parsing, encryption, lookup, response composition,
   inspection, and deletion perform no network operation and require no new
   permission.
+- Sleep maintenance uses AndroidX WorkManager 2.11.2 and declares
+  `NetworkType.NOT_REQUIRED`. WorkManager contributes the non-runtime
+  `WAKE_LOCK` and `RECEIVE_BOOT_COMPLETED` permissions needed to finish scheduled
+  work and restore it after reboot. Kiko explicitly removes WorkManager's unused
+  `ACCESS_NETWORK_STATE` and `FOREGROUND_SERVICE` manifest contributions because
+  this short worker has no network constraint or foreground mode. It never uses
+  the existing `INTERNET` permission authorized for explicit model downloads.
 - Preferred recognition language: `es-US`, falling back to another installed
   Spanish language tag when the service reports one.
 - Partial results: requested and inspected when the service supplies them.
@@ -423,6 +472,14 @@ explicit owner query, to avoid silently resolving an ambiguous person/pet name.
 The same unlocked **Memorias** screen exposes pet-level deletion and clears both
 structured registries when the owner chooses erase-all.
 
+Sleep maintenance operates only on already-explicit durable records. Equivalent
+duplicate representations may be collapsed without changing the represented
+fact; conflicting scalar fields follow the stores' existing most-recent
+replacement rule. Distinct likes are never dropped to force a merge. No retention
+score or age-based forgetting exists. Automatic sleep is opt-in, its report is
+inspectable, and disabling it cancels the periodic request. The one-time request
+can be cancelled separately.
+
 Face recognition stores an encrypted identity record and one normalized
 embedding after explicit naming and an on-screen owner confirmation while the
 phone is unlocked. Explicit “¿qué ves?” troubleshooting captures are the narrow
@@ -514,6 +571,10 @@ defaults until the selected hardware is documented and calibrated.
 - Plain JVM unit tests cover cat/dog registration forms, species-qualified facts,
   owner and pet queries, unsupported species/age rejection, exact Spanish
   responses, and pet-registry serialization/malformed-data rejection.
+- Plain JVM unit tests cover deterministic person/pet duplicate consolidation,
+  most-recent replacement fields, preservation of older populated fields,
+  accent-insensitive like deduplication, no-op input, and refusal to discard more
+  than twenty distinct likes during a merge.
 - Standard-library Python unit tests cover strict body-protocol parsing, bounded
   two-servo trajectories, native capability limits, idempotent command IDs,
   deadline rejection, heartbeat watchdog, completion, and emergency stop.
@@ -529,7 +590,8 @@ defaults until the selected hardware is documented and calibrated.
   ONNX Runtime object-detection and SFace results/performance, platform face-crop
   quality, visual-history persistence/rendering/deletion, encrypted enrollment,
   name listening/confirmation, structured person/pet-memory speech routing,
-  encrypted memory persistence/owner UI, and offline TTS also require
+  encrypted memory persistence/owner UI, constrained sleep scheduling,
+  consolidation/report UI, and offline TTS also require
   physical-device validation; Android BLE, BlueZ, GPIO, and physical-servo
   integration remain untested.
 - Download endpoint probes validate the GGUF magic bytes for all public catalog

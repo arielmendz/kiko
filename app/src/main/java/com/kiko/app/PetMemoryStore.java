@@ -135,6 +135,26 @@ public final class PetMemoryStore {
                 .commit();
     }
 
+    synchronized MemoryMaintenanceResult maintain() {
+        try {
+            List<PetMemoryRecord> records = loadRecords();
+            MemoryConsolidationResult<PetMemoryRecord> result =
+                    StructuredMemoryConsolidator.consolidatePets(records);
+            if (result.changed()) {
+                saveRecords(result.getRecords());
+            }
+            return MemoryMaintenanceResult.success(
+                    result.getRecordsBefore(),
+                    result.getRecords().size(),
+                    result.getDuplicateRecordsMerged(),
+                    result.getDuplicateLikesRemoved()
+            );
+        } catch (Exception error) {
+            Log.e(TAG, "Pet memory maintenance failed", error);
+            return MemoryMaintenanceResult.failure();
+        }
+    }
+
     private List<PetMemoryRecord> loadRecords() throws Exception {
         String encodedCiphertext = preferences.getString(PREF_CIPHERTEXT, null);
         String encodedIv = preferences.getString(PREF_IV, null);

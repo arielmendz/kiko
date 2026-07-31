@@ -156,6 +156,37 @@ to five words, each pet to twenty likes, and the registry to one hundred pets.
 The unlocked **Memorias** screen combines person and pet records for inspection,
 targeted deletion, and erase-all while the encrypted registries remain separate.
 
+## Delivered milestone: safe local sleep maintenance
+
+The unlocked **Sueño** screen lets the owner explicitly enable approximately
+daily maintenance, request one deferred execution, cancel the requested
+execution, and inspect its latest state and completed report. Automatic mode is
+off by default. Both periodic and requested work use Android WorkManager and wait
+until the device is charging and idle, battery and storage are not low, and the
+thermal status is below severe. Scheduling is inexact by design.
+
+Each run decrypts and validates the existing person, pet, and face registries
+locally. It can merge duplicate canonical person/pet records using the most recent
+replacement fields, preserve older populated fields when the newer duplicate is
+missing one, and remove accent-insensitive duplicate likes, including a like that
+duplicates the same favorite food. It refuses to merge records if doing so would
+discard distinct likes beyond the schema limit. Each changed structured registry
+is republished atomically under its existing AES-GCM key. An unreadable registry
+is left untouched and makes the run fail visibly.
+
+This first sleep cycle is maintenance, not autonomous learning. It does not open
+the microphone or camera, access the network, start model inference, update model
+weights, generate facts, delete distinct explicit memories, or control the future
+BLE body. Its persistent report contains timestamps and aggregate counts only—no
+names, facts, images, embeddings, or speech. Face identities are validated but no
+derived face model or prototype is currently written.
+
+WorkManager adds non-runtime wake-lock and boot-completed permissions so deferred
+work can finish and an opted-in periodic schedule survives reboot. Kiko removes
+the library's unused network-state and foreground-service permissions; sleep
+maintenance cannot use the app's separately authorized model-download network
+path.
+
 ## Current limitations
 
 - Recognition is active only while the activity is in the foreground.
@@ -178,6 +209,10 @@ targeted deletion, and erase-all while the encrypted registries remain separate.
 - Structured person-memory speech routing, encrypted persistence, the Memorias
   screen, pet-memory routing, and offline spoken answers still require
   physical-device validation.
+- WorkManager constraint behavior, thermal retry, process-restart persistence,
+  registry consolidation, and the **Sueño** report/control screen still require
+  physical-device validation. Android chooses the actual execution time and may
+  delay or skip a periodic window while constraints remain unmet.
 - “¿Qué ves?” is limited to the 80 COCO classes known by YOLO26n. It cannot
   reliably describe activities, relationships, text, or unfamiliar objects.
 - The `person` class can be wrong. The alpha face preparer uses Android's
@@ -240,9 +275,10 @@ targeted deletion, and erase-all while the encrypted registries remain separate.
 8. **BLE body link (scaffolded):** finish the Android BLE central and Raspberry Pi
    BlueZ peripheral around the versioned GATT command/event protocol, bonding,
    capability negotiation, heartbeats, reconnects, and emergency stop.
-9. **Local memory (face, person, and cat/dog portions delivered):** extend the
-   shipped encrypted face registry and structured person/pet registries with
-   general confirmed facts and observation memories.
+9. **Local memory (face, person, cat/dog, and safe sleep-maintenance portions
+   delivered):** extend the shipped encrypted registries with general confirmed
+   facts, observation memories, derived indexes, and benchmark-gated opt-in
+   personalization without silent forgetting.
 10. **Local vision expansion:** benchmark richer app-owned scene and face
     alignment models without sending images or SDK telemetry to a cloud service.
 11. **Embodied loop:** connect wake word, local inference, safety policy, physical

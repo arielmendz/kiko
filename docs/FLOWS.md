@@ -367,6 +367,49 @@ queries require the species marker so an unqualified name cannot collide with a
 person. The unlocked **Memorias** screen combines both record types but person,
 pet, and face data retain separate keys and registries.
 
+## Sueño local y consolidación segura
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Owner as Dueño desbloqueado
+    participant UI as Sueño
+    participant Scheduler as WorkManager
+    participant Worker as SleepMaintenanceWorker
+    participant People as PersonMemoryStore
+    participant Pets as PetMemoryStore
+    participant Faces as FaceIdentityStore
+    participant Report as SleepMaintenanceReportStore
+
+    Owner->>UI: activar diario o programar una ejecución
+    UI->>Scheduler: trabajo único + restricciones
+    Note over Scheduler: cargando + inactivo + batería/storage<br/>NetworkType.NOT_REQUIRED
+
+    alt temperatura severa
+        Scheduler->>Worker: iniciar
+        Worker->>Report: mantener estado en espera
+        Worker-->>Scheduler: retry con backoff
+    else condiciones seguras
+        Scheduler->>Worker: iniciar
+        Worker->>Report: RUNNING
+        Worker->>People: descifrar + validar + consolidar duplicados
+        Worker->>Pets: descifrar + validar + consolidar duplicados
+        Worker->>Faces: descifrar + validar solamente
+        alt todos válidos
+            Worker->>Report: SUCCESS + timestamps + conteos
+            Report-->>UI: informe sin nombres ni hechos
+        else un registro no es legible
+            Worker->>Report: FAILED
+            Note over Worker: el registro inválido no se reemplaza
+        end
+    end
+```
+
+The worker never opens microphone/camera, initializes inference, accesses the
+network, generates memories, trains weights, deletes distinct facts, or controls
+the body. A one-time request can be cancelled; disabling automatic sleep cancels
+only the periodic request. Android owns the inexact execution time.
+
 ## “Recuerda esto”
 
 ```mermaid

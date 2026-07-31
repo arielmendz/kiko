@@ -69,3 +69,8 @@
 - Add encrypted structured memory for named cats and dogs, including owner,
   species, favorite food, likes, age, spoken queries, and unified inspect/delete
   controls in **Memorias**.
+- Add an opt-in **Sueño** screen and constrained WorkManager job that validates
+  encrypted person, pet, and face registries, consolidates safe semantic
+  duplicates, preserves distinct explicit memories, and reports count-only local
+  results without training models or activating sensors, network access, or body
+  motion.

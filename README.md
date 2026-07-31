@@ -16,7 +16,9 @@ SFace embeddings, and speaks a short Spanish observation with a deliberately
 simple offline voice. Kiko also remembers explicitly stated favorite foods,
 likes, and ages for named people, plus equivalent facts, species, and owners for
 named cats and dogs, in encrypted local registries and answers bounded questions
-about them. It provides a download-only library of local GGUF
+about them. An opt-in **Sueño** screen schedules local, constrained maintenance
+that validates and consolidates those registries without training a model or
+deleting distinct memories. It provides a download-only library of local GGUF
 language models; language-model inference is not implemented yet.
 
 ## Current scope
@@ -63,6 +65,12 @@ language models; language-model inference is not implemented yet.
   Pedro”, then accepts species-qualified favorite-food, like, and age facts. It
   answers questions about that pet and “¿qué mascotas tiene Pedro?” without
   treating unsupported animals or an unqualified name as a pet.
+- Provides an unlocked **Sueño** screen for opt-in daily or requested maintenance.
+  Android waits for charging, device idle, acceptable battery/storage, and safe
+  temperature; the worker validates encrypted person, pet, and face registries,
+  consolidates only semantic duplicates, and writes an inspectable count-only
+  report without network, sensors, model training, movement, or automatic
+  forgetting.
 - Speaks the displayed result with an installed Spanish TTS voice only when that
   voice declares that it does not require a network connection.
 - Offers pinned Gemma 3 1B, Bonsai 1.7B, Qwen3 0.6B, and LFM2.5 350M GGUF
@@ -113,6 +121,14 @@ favorita de Pedro?”. For a pet, first say “Luna es la gata de Pedro”; then
 phrases such as “la gata Luna tiene 3 años”, “¿qué sabes de la gata Luna?” or
 “¿qué mascotas tiene Pedro?”. Open **Memorias** to inspect or erase the
 structured person and pet facts.
+
+Open **Sueño** to enable daily maintenance or program one execution. A requested
+execution is deferred until Android's safe constraints are met; it is not a
+“run immediately” button. The screen shows queued/running/failure state and the
+latest completed count-only report, and can cancel the requested execution.
+WorkManager contributes non-runtime wake-lock and boot-completed permissions for
+this opted-in deferred work; Kiko removes its unused network-state and
+foreground-service permission contributions.
 
 If a Spanish model needs to be downloaded, leave the phone online until the system
 speech service completes it, then close and reopen Kiko. Audio recognition remains
@@ -188,6 +204,10 @@ PYTHONPATH=body/raspberry-pi/src \
 - `app/src/main/java/com/kiko/app/SpanishPetMemoryParser.java` recognizes the
   bounded cat/dog declarations and queries; `PetMemoryStore.java` encrypts those
   structured records under a separate Android Keystore key.
+- `app/src/main/java/com/kiko/app/SleepMaintenanceWorker.java` performs bounded
+  local registry maintenance; `SleepMaintenanceScheduler.java` applies Android
+  charging/idle/resource constraints, and `SleepMaintenanceActivity.java`
+  exposes opt-in scheduling and the count-only report.
 - `app/src/main/java/com/kiko/app/VisualHistoryStore.java` atomically stores,
   lists, and deletes private capture/label records.
 - `app/src/main/java/com/kiko/app/VisualHistoryActivity.java` displays every saved

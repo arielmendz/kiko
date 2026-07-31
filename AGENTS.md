@@ -38,7 +38,13 @@ The current milestones are:
    plus bounded cat/dog records for species, owner, favorite food, likes, and age,
    are stored in separate encrypted, inspectable, locally erasable registries;
    bounded memory questions return only those stored facts; and
-6. no language-model or vision-language-model inference runs yet; local object
+6. an unlocked **Sueño** control can opt into or request local structured-memory
+   maintenance through WorkManager only while charging, idle, battery/storage
+   healthy, and thermally safe; maintenance may validate and consolidate
+   semantically duplicate records but never opens sensors, uses the network,
+   trains models, controls the body, invents facts, or automatically deletes a
+   distinct explicit memory; and
+7. no language-model or vision-language-model inference runs yet; local object
    detection and face-embedding inference do.
 
 Do not silently weaken the local-first or BLE-body goals. Temporary platform
@@ -108,6 +114,11 @@ architecture.
 - Pet memory follows the same rule but requires an explicit `gato`, `gata`,
   `perro`, or `perra` marker in pet-specific fact and name queries so a pet is not
   confused with a person sharing its name. Other animal species are unsupported.
+- Sleep maintenance is derived, reversible housekeeping rather than autonomous
+  learning. It may merge equivalent duplicate representations while preserving
+  distinct facts and must leave any unreadable encrypted registry untouched.
+  Weight updates, synthetic memories, automatic forgetting, sensor activation,
+  network access, and physical motion are outside the shipped sleep boundary.
 - A confirmed name on an “¿qué ves?” photo is explicit face enrollment. It
   requires an unlocked on-screen confirmation, stores only a bounded encrypted
   embedding/name/source link in the face registry, and may be reused only for

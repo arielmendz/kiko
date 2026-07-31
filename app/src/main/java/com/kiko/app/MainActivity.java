@@ -234,6 +234,12 @@ public final class MainActivity extends ComponentActivity implements Recognition
                 new Intent(this, PersonMemoryActivity.class)
         ));
 
+        Button sleepButton = new Button(this);
+        sleepButton.setText(R.string.action_sleep);
+        sleepButton.setOnClickListener(view -> startActivity(
+                new Intent(this, SleepMaintenanceActivity.class)
+        ));
+
         content.addView(
                 eyesView,
                 new LinearLayout.LayoutParams(
@@ -253,6 +259,7 @@ public final class MainActivity extends ComponentActivity implements Recognition
         content.addView(modelsButton);
         content.addView(visualHistoryButton);
         content.addView(personMemoriesButton);
+        content.addView(sleepButton);
         scroll.addView(
                 content,
                 new FrameLayout.LayoutParams(

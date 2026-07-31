@@ -96,6 +96,15 @@ public final class FaceIdentityStore {
                 .commit();
     }
 
+    synchronized int validateForMaintenance() {
+        try {
+            return loadRecords().size();
+        } catch (Exception error) {
+            Log.e(TAG, "Face registry maintenance validation failed", error);
+            return -1;
+        }
+    }
+
     private List<FaceIdentityRecord> loadRecords() throws Exception {
         String encodedCiphertext = preferences.getString(PREF_CIPHERTEXT, null);
         String encodedIv = preferences.getString(PREF_IV, null);
