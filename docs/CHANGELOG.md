@@ -64,3 +64,5 @@
   and answer bounded likes, summary, and favorite-food questions without an LLM.
 - Add an unlocked **Memorias** screen to inspect each person's stored facts,
   forget one person, or erase all person memories locally.
+- Reduce the native googly-eye dimensions by approximately ten percent while
+  preserving their positions and animations.

@@ -12,6 +12,8 @@ import android.util.AttributeSet;
 import android.view.View;
 
 public final class KikoEyesView extends View {
+    private static final float EYE_SCALE = 0.90f;
+
     private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint outlinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path eyeClip = new Path();
@@ -64,12 +66,14 @@ public final class KikoEyesView extends View {
         float contentHeight = getHeight() - getPaddingTop() - getPaddingBottom();
         float centerY = getPaddingTop() + contentHeight * 0.52f;
         float gap = contentWidth * 0.035f;
-        float leftWidth = contentWidth * 0.43f;
-        float rightWidth = contentWidth * 0.45f;
-        float leftCenterX = getPaddingLeft() + leftWidth * 0.5f;
-        float rightCenterX = getWidth() - getPaddingRight() - rightWidth * 0.5f;
-        float leftHeight = contentHeight * 0.80f;
-        float rightHeight = contentHeight * 0.88f;
+        float baseLeftWidth = contentWidth * 0.43f;
+        float baseRightWidth = contentWidth * 0.45f;
+        float leftCenterX = getPaddingLeft() + baseLeftWidth * 0.5f;
+        float rightCenterX = getWidth() - getPaddingRight() - baseRightWidth * 0.5f;
+        float leftWidth = baseLeftWidth * EYE_SCALE;
+        float rightWidth = baseRightWidth * EYE_SCALE;
+        float leftHeight = contentHeight * 0.80f * EYE_SCALE;
+        float rightHeight = contentHeight * 0.88f * EYE_SCALE;
 
         drawEye(
                 canvas,
