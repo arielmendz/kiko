@@ -14,8 +14,10 @@ import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -31,9 +33,11 @@ public final class VisualHistoryStore {
                     + "[0-9a-f]{4}-[0-9a-f]{12}");
 
     private final File directory;
+    private final VisualSubjectStore subjectStore;
 
     public VisualHistoryStore(Context context) {
         directory = new File(context.getApplicationContext().getFilesDir(), DIRECTORY_NAME);
+        subjectStore = new VisualSubjectStore(context);
     }
 
     public VisualHistoryRecord save(
@@ -41,8 +45,33 @@ public final class VisualHistoryStore {
             long capturedAtEpochMillis,
             String description
     ) throws IOException {
+        return save(
+                bitmap,
+                capturedAtEpochMillis,
+                description,
+                VisualHistoryRecord.RecognitionStatus.UNKNOWN,
+                null,
+                null
+        );
+    }
+
+    public VisualHistoryRecord save(
+            Bitmap bitmap,
+            long capturedAtEpochMillis,
+            String description,
+            VisualHistoryRecord.RecognitionStatus recognitionStatus,
+            VisualHistoryRecord.SubjectKind subjectKind,
+            String subjectName
+    ) throws IOException {
         if (bitmap == null || bitmap.isRecycled()) {
             throw new IOException("Captured bitmap is unavailable");
+        }
+        if ((subjectKind == null) != (subjectName == null)
+                || subjectName != null && subjectName.trim().isEmpty()) {
+            throw new IOException("Invalid visual subject");
+        }
+        if (recognitionStatus == null) {
+            throw new IOException("Recognition status is required");
         }
         if (!ensureDirectory()) {
             throw new IOException("Visual history directory is unavailable");
@@ -62,7 +91,16 @@ public final class VisualHistoryStore {
         try {
             writeImage(bitmap, imageTemp);
             writeMetadata(
-                    VisualHistoryMetadata.encode(capturedAtEpochMillis, description),
+                    recognitionStatus == VisualHistoryRecord.RecognitionStatus.UNKNOWN
+                            ? VisualHistoryMetadata.encode(
+                                    capturedAtEpochMillis,
+                                    description
+                            )
+                            : VisualHistoryMetadata.encodeRecognition(
+                                    capturedAtEpochMillis,
+                                    description,
+                                    recognitionStatus
+                            ),
                     metadataTemp
             );
             moveNewFile(imageTemp, imageFile);
@@ -72,13 +110,22 @@ public final class VisualHistoryStore {
                 imageFile.delete();
                 throw error;
             }
-            return new VisualHistoryRecord(
+            VisualHistoryRecord record = new VisualHistoryRecord(
                     id,
                     capturedAtEpochMillis,
                     description,
-                    null,
+                    recognitionStatus,
+                    subjectKind,
+                    subjectName,
                     imageFile
             );
+            if (subjectKind != null
+                    && !subjectStore.set(id, subjectKind, subjectName)) {
+                imageFile.delete();
+                metadataFile.delete();
+                throw new IOException("Visual subject could not be encrypted");
+            }
+            return record;
         } finally {
             imageTemp.delete();
             metadataTemp.delete();
@@ -86,8 +133,18 @@ public final class VisualHistoryStore {
     }
 
     public List<VisualHistoryRecord> list() {
+        return list(subjectStore.list());
+    }
+
+    private List<VisualHistoryRecord> list(
+            List<VisualSubjectRecord> subjects
+    ) {
         if (!directory.isDirectory()) {
             return Collections.emptyList();
+        }
+        Map<String, VisualSubjectRecord> subjectsByHistoryId = new HashMap<>();
+        for (VisualSubjectRecord subject : subjects) {
+            subjectsByHistoryId.put(subject.getHistoryRecordId(), subject);
         }
         File[] metadataFiles = directory.listFiles(
                 (ignored, name) -> name.endsWith(METADATA_SUFFIX)
@@ -110,11 +167,21 @@ public final class VisualHistoryStore {
             try {
                 VisualHistoryMetadata.Decoded metadata =
                         VisualHistoryMetadata.decode(readMetadata(metadataFile));
+                VisualSubjectRecord subject = subjectsByHistoryId.get(id);
+                VisualHistoryRecord.SubjectKind subjectKind = subject == null
+                        ? metadata.getPersonName() == null
+                                ? null : VisualHistoryRecord.SubjectKind.PERSON
+                        : subject.getKind();
+                String subjectName = subject == null
+                        ? metadata.getPersonName()
+                        : subject.getName();
                 records.add(new VisualHistoryRecord(
                         id,
                         metadata.getCapturedAtEpochMillis(),
                         metadata.getDescription(),
-                        metadata.getPersonName(),
+                        metadata.getRecognitionStatus(),
+                        subjectKind,
+                        subjectName,
                         imageFile
                 ));
             } catch (IOException | IllegalArgumentException ignored) {
@@ -132,24 +199,51 @@ public final class VisualHistoryStore {
     }
 
     public boolean setPersonName(String recordId, String personName) {
-        if (!isRecordId(recordId)
-                || personName == null
-                || personName.trim().isEmpty()) {
-            return false;
-        }
-        return updatePersonName(recordId, personName.trim());
+        return setSubject(
+                recordId,
+                VisualHistoryRecord.SubjectKind.PERSON,
+                personName
+        );
     }
 
     public boolean clearPersonName(String recordId) {
-        return isRecordId(recordId) && updatePersonName(recordId, null);
+        return clearSubject(recordId);
     }
 
-    private boolean updatePersonName(String recordId, String personName) {
+    public boolean setSubject(
+            String recordId,
+            VisualHistoryRecord.SubjectKind subjectKind,
+            String subjectName
+    ) {
+        if (!isRecordId(recordId)
+                || subjectKind == null
+                || subjectName == null
+                || subjectName.trim().isEmpty()) {
+            return false;
+        }
+        File imageFile = new File(directory, recordId + IMAGE_SUFFIX);
+        File metadataFile = new File(directory, recordId + METADATA_SUFFIX);
+        return imageFile.isFile()
+                && metadataFile.isFile()
+                && subjectStore.set(recordId, subjectKind, subjectName.trim())
+                && updateLegacyPersonName(recordId, null);
+    }
+
+    public boolean clearSubject(String recordId) {
+        return isRecordId(recordId)
+                && subjectStore.delete(recordId)
+                && updateLegacyPersonName(recordId, null);
+    }
+
+    private boolean updateLegacyPersonName(
+            String recordId,
+            String personName
+    ) {
         File imageFile = new File(directory, recordId + IMAGE_SUFFIX);
         File metadataFile = new File(directory, recordId + METADATA_SUFFIX);
         File metadataTemp = new File(
                 directory,
-                recordId + METADATA_SUFFIX + ".person" + TEMP_SUFFIX
+                recordId + METADATA_SUFFIX + ".subject" + TEMP_SUFFIX
         );
         if (!imageFile.isFile() || !metadataFile.isFile()) {
             return false;
@@ -158,6 +252,9 @@ public final class VisualHistoryStore {
         try {
             VisualHistoryMetadata.Decoded metadata =
                     VisualHistoryMetadata.decode(readMetadata(metadataFile));
+            if (metadata.getPersonName() == null) {
+                return true;
+            }
             writeMetadata(
                     VisualHistoryMetadata.encode(
                             metadata.getCapturedAtEpochMillis(),
@@ -175,8 +272,50 @@ public final class VisualHistoryStore {
         }
     }
 
+    synchronized VisualHistoryMaintenanceResult maintain(
+            List<FaceIdentityRecord> identities,
+            boolean deleteUnrecognized
+    ) {
+        VisualSubjectLoadResult subjectResult =
+                subjectStore.loadForMaintenance();
+        if (!subjectResult.isSuccessful()) {
+            return VisualHistoryMaintenanceResult.failure();
+        }
+        List<VisualHistoryRecord> records = list(subjectResult.getRecords());
+        VisualHistoryMaintenancePlan plan = VisualHistoryMaintenancePlan.create(
+                records,
+                identities,
+                deleteUnrecognized
+        );
+        for (VisualHistoryMaintenancePlan.SubjectUpdate update
+                : plan.getSubjectUpdates()) {
+            if (!setSubject(
+                    update.getRecordId(),
+                    update.getSubjectKind(),
+                    update.getSubjectName()
+            )) {
+                return VisualHistoryMaintenanceResult.failure();
+            }
+        }
+        int deleted = 0;
+        for (VisualHistoryRecord record : plan.getRecordsToDelete()) {
+            if (!delete(record)) {
+                return VisualHistoryMaintenanceResult.failure();
+            }
+            deleted++;
+        }
+        return VisualHistoryMaintenanceResult.success(
+                records.size() - deleted,
+                deleted,
+                plan.getNamedGroupCount()
+        );
+    }
+
     public boolean delete(VisualHistoryRecord record) {
         if (record == null || !isRecordId(record.getId())) {
+            return false;
+        }
+        if (!subjectStore.delete(record.getId())) {
             return false;
         }
         File imageFile = new File(directory, record.getId() + IMAGE_SUFFIX);
@@ -187,6 +326,9 @@ public final class VisualHistoryStore {
     }
 
     public boolean deleteAll() {
+        if (!subjectStore.deleteAll()) {
+            return false;
+        }
         if (!directory.exists()) {
             return true;
         }

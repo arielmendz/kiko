@@ -172,6 +172,7 @@ sequenceDiagram
     participant Model as YOLO26n ONNX verificado
     participant Face as FaceDetector + SFace verificado
     participant Registry as FaceIdentityStore cifrado
+    participant Subjects as VisualSubjectStore cifrado
     participant Reply as SpanishSceneDescription
     participant History as Historial visual privado
     participant Voice as TTS español sin red
@@ -200,6 +201,7 @@ sequenceDiagram
             Face->>Registry: comparar localmente
             alt Coincidencia clara
                 Registry-->>Reply: “Veo a <nombre>”
+                Vision->>Subjects: asociar foto → persona reconocida
             else Cara desconocida usable
                 Registry-->>Reply: “Veo una persona, no la conozco, ¿quién es?”
             else SFace ausente, cara no usable o error
@@ -221,7 +223,7 @@ sequenceDiagram
             Session-->>Persona: confirmar Guardar/Cancelar en pantalla desbloqueada
             alt Guardar confirmado
                 Session->>Registry: cifrar nombre + embedding + vínculo
-                Session->>History: adjuntar nombre confirmado
+                Session->>Subjects: cifrar asociación foto → persona
             else Cancelar, timeout o nombre inválido
                 Session->>History: dejar foto sin nombre
             end
@@ -234,14 +236,15 @@ sequenceDiagram
     end
 ```
 
-A scene without YOLO's `person` class does not run identity recognition. Every
-capture is retained in app-private troubleshooting history, where the unlocked
-user can forget one identity, delete one record and its linked identity, or erase
-everything. A confirmed unknown face creates an encrypted local enrollment; a
-clear later match is only a toy label and never authentication. YOLO26n remains a
-bounded object detector rather than a scene captioner; a future richer local
-model may replace it without changing the explicit permission, local-only
-retention, or no-network boundaries.
+A scene without YOLO's `person` class does not run identity recognition. The
+unlocked user may explicitly choose a previously stored cat/dog for a photo;
+object detection never guesses an individual pet. Named photos are grouped via a
+separate encrypted subject registry. Every capture initially enters app-private
+troubleshooting history, where the user can remove a tag, forget one identity,
+delete one record and its linked identity, or erase everything. An optional sleep
+policy may later delete captures with a conclusive no-object/error outcome that
+remain unnamed. Recognized but unnamed objects remain. A clear face match is only
+a toy label and never authentication.
 
 ## “¿A quién ves?” and face enrollment
 
@@ -379,9 +382,14 @@ sequenceDiagram
     participant People as PersonMemoryStore
     participant Pets as PetMemoryStore
     participant Faces as FaceIdentityStore
+    participant Subjects as VisualSubjectStore
+    participant History as VisualHistoryStore
     participant Report as SleepMaintenanceReportStore
 
     Owner->>UI: activar diario o programar una ejecución
+    opt consentimiento destructivo separado
+        Owner->>UI: activar “borrar fotos no reconocidas”
+    end
     UI->>Scheduler: trabajo único + restricciones
     Note over Scheduler: cargando + inactivo + batería/storage<br/>NetworkType.NOT_REQUIRED
 
@@ -395,7 +403,12 @@ sequenceDiagram
         Worker->>People: descifrar + validar + consolidar duplicados
         Worker->>Pets: descifrar + validar + consolidar duplicados
         Worker->>Faces: descifrar + validar solamente
+        Worker->>Subjects: descifrar + validar asociaciones
         alt todos válidos
+            Worker->>History: agrupar fotos por persona/mascota
+            opt limpieza de fotos activada
+                Worker->>History: borrar fotos sin sujeto nombrado
+            end
             Worker->>Report: SUCCESS + timestamps + conteos
             Report-->>UI: informe sin nombres ni hechos
         else un registro no es legible
@@ -407,8 +420,10 @@ sequenceDiagram
 
 The worker never opens microphone/camera, initializes inference, accesses the
 network, generates memories, trains weights, deletes distinct facts, or controls
-the body. A one-time request can be cancelled; disabling automatic sleep cancels
-only the periodic request. Android owns the inexact execution time.
+the body. Unnamed-photo deletion is initially disabled and independent of the
+automatic schedule; unreadable face/subject registries stop cleanup rather than
+classifying every photo as unknown. A one-time request can be cancelled;
+disabling automatic sleep cancels only the periodic request.
 
 ## “Recuerda esto”
 
@@ -455,8 +470,9 @@ Ordinary conversation is ephemeral. Only explicit bounded `PersonMemoryRecord`
 or `PetMemoryRecord` updates, or separately confirmed future `MemoryItem` records,
 enter durable memory, and a remembered scene stores text rather than another copy
 of its camera frame.
-The separate visual troubleshooting history still retains the original
-`describe_scene` capture until the user deletes it.
+The separate visual troubleshooting history initially retains the original
+`describe_scene` capture until manual deletion or opted-in unrecognized-photo
+cleanup; recognized captures remain even without a person/pet name.
 
 ## Failure containment
 

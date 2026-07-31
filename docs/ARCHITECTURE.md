@@ -4,8 +4,9 @@
 
 The application is one Android app module with wake-word, scene-perception,
 encrypted face-memory, encrypted structured person/pet memory, constrained local
-sleep maintenance, and model-management areas. Pet memory is stored independently
-from person and face data.
+sleep maintenance, encrypted visual-subject grouping, and model-management areas.
+Pet memory and photo/name associations are stored independently from person and
+face data.
 
 Wake-word components:
 
@@ -53,12 +54,17 @@ Scene-perception components:
   post-detection speech window, recognizes explicit cancellation, rejects digits
   and unexpected characters, and does not use a language model.
 - `VisualHistoryStore` owns app-private JPEG and metadata records, atomic
-  publication/update, newest-first listing, confirmed person-name tags, targeted
-  deletion, and erase-all. Metadata v2 remains backward-compatible with unnamed
-  v1 records.
-- `VisualHistoryActivity` renders those records with the exact response attached
-  to each capture and exposes forget-identity, delete-one, and erase-all controls.
-  Identity mutations require an unlocked on-screen action.
+  publication/update, typed-subject lookup, targeted deletion, and erase-all.
+  Metadata v3 records conclusive `RECOGNIZED`/`UNRECOGNIZED` detection outcome;
+  v1/v2 records remain readable with conservative unknown status and old
+  person-name labels.
+- `VisualSubjectStore` encrypts photo ID, `PERSON`/`PET` type, and display name as
+  a separate bounded AES-GCM registry under Android Keystore. Current builds do
+  not add names to JPEG metadata.
+- `VisualHistoryActivity` groups records by typed person/pet name, shows an
+  unnamed group, and exposes forget-identity, explicit stored-pet tagging,
+  remove-tag, delete-one, and erase-all controls. These mutations require an
+  unlocked on-screen action; object-class detection never chooses a pet name.
 - `OfflineSpanishSpeaker` selects an installed Spanish `Voice` only when Android
   reports that it does not require a network connection. Lower pitch and speech
   rate provide the current simple robotic effect.
@@ -107,14 +113,17 @@ Sleep-maintenance components:
   requires no network. Automatic mode uses an inexact 24-hour periodic request;
   manual scheduling remains deferred by the same constraints.
 - `SleepMaintenanceWorker` rejects severe-or-worse thermal state, consolidates
-  person and pet registries, validates the face registry, and never initializes
-  speech, camera, inference, download, BLE, or body components.
+  person and pet registries, validates face and visual-subject registries,
+  restores face-enrollment source labels, groups named photos, and optionally
+  deletes conclusively unrecognized, still-unnamed photos. It never initializes speech, camera, inference,
+  download, BLE, or body components.
 - `StructuredMemoryConsolidator` is platform-independent. It merges duplicate
   canonical records using most-recent replacement semantics, fills missing
   fields from older duplicates, deduplicates equivalent likes, and refuses a
   merge that would exceed twenty distinct likes.
-- `SleepMaintenanceReportStore` persists only mode/state timestamps and aggregate
-  counts. Reports contain no names, facts, images, embeddings, or utterances.
+- `SleepMaintenanceReportStore` persists only mode/state/photo-policy flags,
+  timestamps, and aggregate counts. Reports contain no names, facts, images,
+  embeddings, or utterances.
 
 Model-management components:
 
@@ -170,6 +179,10 @@ flowchart LR
     Face -- "desconocida" --> Name["Preguntar nombre<br/>+ confirmar desbloqueado"]
     Name --> Registry
     Name --> History
+    Registry --> Subjects["VisualSubjectStore<br/>foto → persona cifrada"]
+    PetMemory["PetMemoryStore"] --> PetTag["selección explícita de mascota"]
+    PetTag --> Subjects
+    Subjects --> History
     History --> Gallery["Historial visual<br/>olvidar / borrar uno / borrar todo"]
     Description --> Screen["Pantalla"]
     Description --> Voice["TTS español sin red"]
@@ -208,18 +221,28 @@ flowchart LR
     Worker --> People["PersonMemoryStore<br/>validar + consolidar"]
     Worker --> Pets["PetMemoryStore<br/>validar + consolidar"]
     Worker --> Faces["FaceIdentityStore<br/>solo validar"]
+    Worker --> Subjects["VisualSubjectStore<br/>validar + agrupar"]
+    Worker --> Photos{"¿limpieza de fotos<br/>activada?"}
+    Photos -- "Sí" --> Delete["borrar capturas sin detección<br/>y todavía sin nombre"]
     People --> Report["informe local<br/>solo conteos"]
     Pets --> Report
     Faces --> Report
+    Subjects --> Report
+    Delete --> Report
     Report --> Owner
 ```
 
 Automatic sleep is disabled until the unlocked owner enables it. A requested run
-is also constrained rather than immediate. Each structured registry publishes
+is also constrained rather than immediate. Unnamed-photo deletion has a second,
+initially-disabled owner switch so an existing automatic schedule never gains a
+new destructive policy silently. Each structured registry publishes
 its own encrypted update atomically; decryption or validation failure never
 replaces that registry and produces a visible failed report. There is no
 cross-registry transaction, so a prior registry may already have completed safe
-maintenance if a later independent registry fails.
+maintenance if a later independent registry fails. Photo cleanup is likewise
+per record: it removes the encrypted subject association and JPEG/metadata pair,
+stops on the first deletion failure, and does not roll back earlier successful
+deletions.
 
 The wake word opens a ten-second command window. Starting perception cancels the
 speech recognizer so Kiko cannot hear its own TTS. Leaving the activity cancels
@@ -271,9 +294,8 @@ license. SFace is Apache-2.0. Platform TTS and Android's legacy local
 eye-midpoint `FaceDetector` are temporary dependencies. Each completed explicit
 “¿qué ves?” capture is written as a JPEG plus bounded metadata under Kiko's
 internal app-private files directory. The image and exact result remain local,
-are removed by per-item deletion, erase-all, or app uninstall, and require no
-broad storage permission. Kiko does not impose an automatic retention cap in the
-current troubleshooting milestone. The `person` class is only a gate: identity
+are removed by per-item deletion, erase-all, opted-in sleep cleanup, or app
+uninstall, and require no broad storage permission. The `person` class is only a gate: identity
 comes from SFace matching against the encrypted registry. A user-supplied name
 becomes enrollment only after unlocked on-screen confirmation. The registry
 ciphertext is app-private and AES-GCM encrypted with a non-exportable Android
@@ -281,6 +303,10 @@ Keystore key; raw embeddings are not exposed to speech, TTS, or a language model
 Deleting an enrollment source photo also forgets its linked identity, while the
 separate **Olvidar persona** action retains the photo. Older name-only metadata is
 shown as a legacy label and never silently upgraded to biometric enrollment.
+New photo-to-person/pet associations are stored only in the separate encrypted
+visual-subject registry. Pet associations require an unlocked owner selection
+from existing cat/dog memory because COCO class detection provides no individual
+pet identity.
 
 Android's `SpeechRecognizer` remains an utterance-oriented bootstrap dependency,
 so microphone sessions can visibly cycle during silence. Reliable continuous
@@ -478,16 +504,24 @@ fact; conflicting scalar fields follow the stores' existing most-recent
 replacement rule. Distinct likes are never dropped to force a merge. No retention
 score or age-based forgetting exists. Automatic sleep is opt-in, its report is
 inspectable, and disabling it cancels the periodic request. The one-time request
-can be cancelled separately.
+can be cancelled separately. Unrecognized-photo deletion is a distinct
+destructive opt-in. With it disabled, sleep only validates and groups visual
+history. With it enabled, only new-format records marked `UNRECOGNIZED` are
+removed, and a later explicit person/pet name protects even those records.
+`RECOGNIZED` photos remain regardless of naming, while legacy records with
+unknown status are conservative. A failed face or visual-subject registry
+validation prevents photo deletion rather than treating every photo as unknown.
 
 Face recognition stores an encrypted identity record and one normalized
 embedding after explicit naming and an on-screen owner confirmation while the
 phone is unlocked. Explicit “¿qué ves?” troubleshooting captures are the narrow
 exception to default camera ephemerality: every completed capture is retained
-locally with its result and stays inspectable and erasable. A confirmed
+locally with its result initially and stays inspectable and erasable until manual
+deletion or opted-in unrecognized-photo cleanup. A confirmed
 detected-person photo is the visible enrollment source. The JPEG remains
-app-private under Android file-based encryption; the name and embedding receive
-additional application-level AES-GCM encryption under Android Keystore. Targeted
+app-private under Android file-based encryption; face identity and typed photo
+subject registries receive additional application-level AES-GCM encryption under
+Android Keystore. Targeted
 forget deletes the identity but can retain the photo; photo deletion deletes its
 linked identity; erase-all and app uninstall remove both. Facts and later indexes
 must follow the same local, inspectable, erasable pattern.
@@ -565,6 +599,9 @@ defaults until the selected hardware is documented and calibrated.
 - Plain JVM unit tests cover person-label gating, bounded Spanish name extraction
   and cancellation, metadata migration, face-registry serialization, embedding
   normalization, conservative matching, and ambiguity rejection.
+- Plain JVM unit tests cover typed encrypted visual-subject serialization,
+  person/pet/unnamed grouping, restoration from face-enrollment links, conclusive
+  recognition-status metadata, and the opt-in unrecognized-photo retention plan.
 - Plain JVM unit tests cover every supported person-memory update/query form,
   bounds rejection, merging/deduplication, exact Spanish responses, unknown
   answers, and versioned registry serialization/malformed-data rejection.
@@ -590,8 +627,8 @@ defaults until the selected hardware is documented and calibrated.
   ONNX Runtime object-detection and SFace results/performance, platform face-crop
   quality, visual-history persistence/rendering/deletion, encrypted enrollment,
   name listening/confirmation, structured person/pet-memory speech routing,
-  encrypted memory persistence/owner UI, constrained sleep scheduling,
-  consolidation/report UI, and offline TTS also require
+  encrypted memory persistence/owner UI, visual pet tagging/grouping, constrained
+  sleep scheduling, photo cleanup, consolidation/report UI, and offline TTS also require
   physical-device validation; Android BLE, BlueZ, GPIO, and physical-servo
   integration remain untested.
 - Download endpoint probes validate the GGUF magic bytes for all public catalog

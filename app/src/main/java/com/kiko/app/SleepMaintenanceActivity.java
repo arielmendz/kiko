@@ -32,6 +32,7 @@ public final class SleepMaintenanceActivity extends Activity {
 
     private SleepMaintenanceReportStore reportStore;
     private Switch automaticSwitch;
+    private Switch photoCleanupSwitch;
     private Button cancelButton;
     private TextView currentState;
     private TextView lastReport;
@@ -131,6 +132,29 @@ public final class SleepMaintenanceActivity extends Activity {
         constraints.setPadding(0, dp(8), 0, dp(16));
         root.addView(constraints);
 
+        photoCleanupSwitch = new Switch(this);
+        photoCleanupSwitch.setText(R.string.sleep_photo_cleanup_action);
+        photoCleanupSwitch.setTextColor(getColor(R.color.kiko_text));
+        photoCleanupSwitch.setTextSize(18);
+        photoCleanupSwitch.setOnCheckedChangeListener((button, enabled) -> {
+            if (refreshingSwitch) {
+                return;
+            }
+            if (!reportStore.setPhotoCleanupEnabled(enabled)) {
+                showSchedulingError();
+            }
+            reload();
+        });
+        root.addView(photoCleanupSwitch);
+
+        TextView photoCleanupExplanation = textView(
+                getString(R.string.sleep_photo_cleanup_explanation),
+                15,
+                R.color.kiko_muted
+        );
+        photoCleanupExplanation.setPadding(0, dp(8), 0, dp(16));
+        root.addView(photoCleanupExplanation);
+
         Button request = new Button(this);
         request.setText(R.string.sleep_request_action);
         request.setOnClickListener(view -> {
@@ -184,6 +208,7 @@ public final class SleepMaintenanceActivity extends Activity {
         SleepMaintenanceReport report = reportStore.load();
         refreshingSwitch = true;
         automaticSwitch.setChecked(report.isAutomaticEnabled());
+        photoCleanupSwitch.setChecked(report.isPhotoCleanupEnabled());
         refreshingSwitch = false;
         cancelButton.setEnabled(report.isRequestedRunPending());
         currentState.setText(stateText(report));
@@ -201,7 +226,10 @@ public final class SleepMaintenanceActivity extends Activity {
                 report.getPetsVerified(),
                 report.getFacesVerified(),
                 report.getDuplicateRecordsMerged(),
-                report.getDuplicateLikesRemoved()
+                report.getDuplicateLikesRemoved(),
+                report.getPhotosRetained(),
+                report.getPhotosDeleted(),
+                report.getNamedPhotoGroups()
         ));
     }
 

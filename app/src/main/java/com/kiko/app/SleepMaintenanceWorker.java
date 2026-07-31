@@ -53,26 +53,45 @@ public final class SleepMaintenanceWorker extends Worker {
             preserveCancellationOrQueue(reportStore, requestedRun);
             return Result.failure();
         }
-        int faces = new FaceIdentityStore(
+        FaceMaintenanceResult faces = new FaceIdentityStore(
                 getApplicationContext()
-        ).validateForMaintenance();
+        ).loadForMaintenance();
         if (isStopped()) {
             preserveCancellationOrQueue(reportStore, requestedRun);
             return Result.failure();
         }
 
-        if (!people.isSuccessful() || !pets.isSuccessful() || faces < 0) {
+        if (!people.isSuccessful()
+                || !pets.isSuccessful()
+                || !faces.isSuccessful()) {
+            reportStore.markState(SleepMaintenanceReport.State.FAILED);
+            return Result.failure();
+        }
+        VisualHistoryMaintenanceResult photos = new VisualHistoryStore(
+                getApplicationContext()
+        ).maintain(
+                faces.getIdentities(),
+                reportStore.load().isPhotoCleanupEnabled()
+        );
+        if (isStopped()) {
+            preserveCancellationOrQueue(reportStore, requestedRun);
+            return Result.failure();
+        }
+        if (!photos.isSuccessful()) {
             reportStore.markState(SleepMaintenanceReport.State.FAILED);
             return Result.failure();
         }
         reportStore.markSuccess(
                 people.getRecordsAfter(),
                 pets.getRecordsAfter(),
-                faces,
+                faces.getIdentities().size(),
                 people.getDuplicateRecordsMerged()
                         + pets.getDuplicateRecordsMerged(),
                 people.getDuplicateLikesRemoved()
-                        + pets.getDuplicateLikesRemoved()
+                        + pets.getDuplicateLikesRemoved(),
+                photos.getPhotosRetained(),
+                photos.getPhotosDeleted(),
+                photos.getNamedGroups()
         );
         return Result.success();
     }

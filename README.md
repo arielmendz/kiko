@@ -17,8 +17,9 @@ simple offline voice. Kiko also remembers explicitly stated favorite foods,
 likes, and ages for named people, plus equivalent facts, species, and owners for
 named cats and dogs, in encrypted local registries and answers bounded questions
 about them. An opt-in **Sueño** screen schedules local, constrained maintenance
-that validates and consolidates those registries without training a model or
-deleting distinct memories. It provides a download-only library of local GGUF
+that validates and consolidates those registries, groups named visual-history
+photos, and can explicitly delete unrecognized unnamed photos without training a model or
+deleting distinct fact memories. It provides a download-only library of local GGUF
 language models; language-model inference is not implemented yet.
 
 ## Current scope
@@ -43,7 +44,8 @@ language models; language-model inference is not implemented yet.
   COCO object types in Spanish.
 - Saves every completed “¿qué ves?” capture with Kiko's Spanish result in a
   private, on-device **Historial visual**, including the “nothing recognized” or
-  analysis-error result. Captures can be deleted individually or all at once.
+  analysis-error result. Named photos are grouped by person or pet. Captures can
+  be deleted individually or all at once.
 - When YOLO emits the `person` class, prepares one face locally and compares its
   SFace embedding with encrypted, explicitly confirmed identities. A clear match
   answers “Veo a <nombre>”; an unknown face asks “Veo una persona, no la conozco,
@@ -65,12 +67,16 @@ language models; language-model inference is not implemented yet.
   Pedro”, then accepts species-qualified favorite-food, like, and age facts. It
   answers questions about that pet and “¿qué mascotas tiene Pedro?” without
   treating unsupported animals or an unqualified name as a pet.
+- Lets the unlocked owner associate a history photo with a previously stored cat
+  or dog. YOLO does not distinguish individual pets, so Kiko never guesses this
+  association.
 - Provides an unlocked **Sueño** screen for opt-in daily or requested maintenance.
   Android waits for charging, device idle, acceptable battery/storage, and safe
   temperature; the worker validates encrypted person, pet, and face registries,
   consolidates only semantic duplicates, and writes an inspectable count-only
-  report without network, sensors, model training, movement, or automatic
-  forgetting.
+  report without network, sensors, model training, or movement. A separate,
+  initially disabled switch may delete new photos with a conclusive no-object or
+  analysis-error result that still have no explicit person/pet name.
 - Speaks the displayed result with an installed Spanish TTS voice only when that
   voice declares that it does not require a network connection.
 - Offers pinned Gemma 3 1B, Bonsai 1.7B, Qwen3 0.6B, and LFM2.5 350M GGUF
@@ -129,6 +135,11 @@ latest completed count-only report, and can cancel the requested execution.
 WorkManager contributes non-runtime wake-lock and boot-completed permissions for
 this opted-in deferred work; Kiko removes its unused network-state and
 foreground-service permission contributions.
+The separate **Borrar fotos no reconocidas** option is destructive and starts off:
+when enabled, the next completed sleep cycle permanently removes every valid
+history photo for which YOLO conclusively produced no accepted object (or analysis
+failed), unless the owner later named a person or pet on that photo. Recognized
+but unnamed objects remain in history.
 
 If a Spanish model needs to be downloaded, leave the phone online until the system
 speech service completes it, then close and reopen Kiko. Audio recognition remains
@@ -137,8 +148,10 @@ on-device.
 Open **Modelos locales** from the wake-word screen to manage language and vision
 model downloads. Kiko requests network access solely for user-initiated
 model-file downloads; it does not send prompts, microphone audio, camera images,
-labels, or inference data anywhere. Visual-history JPEGs and labels remain in
-Kiko's private internal storage until the user deletes them or uninstalls the app.
+labels, or inference data anywhere. Visual-history JPEGs remain in Kiko's private
+internal storage until the user deletes them, enables the sleep photo-cleanup
+policy, or uninstalls the app. Photo-to-person/pet associations use a separate
+AES-GCM registry under Android Keystore; legacy labels may remain in old metadata.
 Face names and 128-value embeddings are additionally AES-GCM encrypted with a key
 held by Android Keystore.
 Person-memory names, favorite foods, likes, and ages use an AES-GCM registry
@@ -208,6 +221,8 @@ PYTHONPATH=body/raspberry-pi/src \
   local registry maintenance; `SleepMaintenanceScheduler.java` applies Android
   charging/idle/resource constraints, and `SleepMaintenanceActivity.java`
   exposes opt-in scheduling and the count-only report.
+- `app/src/main/java/com/kiko/app/VisualSubjectStore.java` encrypts typed
+  photo-to-person/pet associations used for gallery grouping and sleep retention.
 - `app/src/main/java/com/kiko/app/VisualHistoryStore.java` atomically stores,
   lists, and deletes private capture/label records.
 - `app/src/main/java/com/kiko/app/VisualHistoryActivity.java` displays every saved

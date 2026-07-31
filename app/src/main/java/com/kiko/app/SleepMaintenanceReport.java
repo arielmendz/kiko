@@ -11,6 +11,7 @@ public final class SleepMaintenanceReport {
     }
 
     private final boolean automaticEnabled;
+    private final boolean photoCleanupEnabled;
     private final boolean requestedRunPending;
     private final State state;
     private final long stateChangedAtEpochMillis;
@@ -20,9 +21,13 @@ public final class SleepMaintenanceReport {
     private final int facesVerified;
     private final int duplicateRecordsMerged;
     private final int duplicateLikesRemoved;
+    private final int photosRetained;
+    private final int photosDeleted;
+    private final int namedPhotoGroups;
 
     SleepMaintenanceReport(
             boolean automaticEnabled,
+            boolean photoCleanupEnabled,
             boolean requestedRunPending,
             State state,
             long stateChangedAtEpochMillis,
@@ -31,9 +36,13 @@ public final class SleepMaintenanceReport {
             int petsVerified,
             int facesVerified,
             int duplicateRecordsMerged,
-            int duplicateLikesRemoved
+            int duplicateLikesRemoved,
+            int photosRetained,
+            int photosDeleted,
+            int namedPhotoGroups
     ) {
         this.automaticEnabled = automaticEnabled;
+        this.photoCleanupEnabled = photoCleanupEnabled;
         this.requestedRunPending = requestedRunPending;
         this.state = state;
         this.stateChangedAtEpochMillis = stateChangedAtEpochMillis;
@@ -43,10 +52,17 @@ public final class SleepMaintenanceReport {
         this.facesVerified = facesVerified;
         this.duplicateRecordsMerged = duplicateRecordsMerged;
         this.duplicateLikesRemoved = duplicateLikesRemoved;
+        this.photosRetained = photosRetained;
+        this.photosDeleted = photosDeleted;
+        this.namedPhotoGroups = namedPhotoGroups;
     }
 
     public boolean isAutomaticEnabled() {
         return automaticEnabled;
+    }
+
+    public boolean isPhotoCleanupEnabled() {
+        return photoCleanupEnabled;
     }
 
     public boolean isRequestedRunPending() {
@@ -83,5 +99,17 @@ public final class SleepMaintenanceReport {
 
     public int getDuplicateLikesRemoved() {
         return duplicateLikesRemoved;
+    }
+
+    public int getPhotosRetained() {
+        return photosRetained;
+    }
+
+    public int getPhotosDeleted() {
+        return photosDeleted;
+    }
+
+    public int getNamedPhotoGroups() {
+        return namedPhotoGroups;
     }
 }

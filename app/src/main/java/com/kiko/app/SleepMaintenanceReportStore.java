@@ -6,6 +6,7 @@ import android.content.SharedPreferences;
 final class SleepMaintenanceReportStore {
     private static final String PREFS_NAME = "sleep_maintenance";
     private static final String PREF_AUTOMATIC = "automatic_enabled";
+    private static final String PREF_PHOTO_CLEANUP = "photo_cleanup_enabled";
     private static final String PREF_REQUESTED_PENDING = "requested_pending";
     private static final String PREF_STATE = "state";
     private static final String PREF_STATE_AT = "state_at";
@@ -15,6 +16,9 @@ final class SleepMaintenanceReportStore {
     private static final String PREF_FACES = "faces_verified";
     private static final String PREF_RECORDS_MERGED = "records_merged";
     private static final String PREF_LIKES_REMOVED = "likes_removed";
+    private static final String PREF_PHOTOS_RETAINED = "photos_retained";
+    private static final String PREF_PHOTOS_DELETED = "photos_deleted";
+    private static final String PREF_PHOTO_GROUPS = "photo_groups";
 
     private final SharedPreferences preferences;
 
@@ -37,6 +41,7 @@ final class SleepMaintenanceReportStore {
         }
         return new SleepMaintenanceReport(
                 preferences.getBoolean(PREF_AUTOMATIC, false),
+                preferences.getBoolean(PREF_PHOTO_CLEANUP, false),
                 preferences.getBoolean(PREF_REQUESTED_PENDING, false),
                 state,
                 preferences.getLong(PREF_STATE_AT, 0L),
@@ -45,13 +50,22 @@ final class SleepMaintenanceReportStore {
                 preferences.getInt(PREF_PETS, 0),
                 preferences.getInt(PREF_FACES, 0),
                 preferences.getInt(PREF_RECORDS_MERGED, 0),
-                preferences.getInt(PREF_LIKES_REMOVED, 0)
+                preferences.getInt(PREF_LIKES_REMOVED, 0),
+                preferences.getInt(PREF_PHOTOS_RETAINED, 0),
+                preferences.getInt(PREF_PHOTOS_DELETED, 0),
+                preferences.getInt(PREF_PHOTO_GROUPS, 0)
         );
     }
 
     synchronized boolean setAutomaticEnabled(boolean enabled) {
         return preferences.edit()
                 .putBoolean(PREF_AUTOMATIC, enabled)
+                .commit();
+    }
+
+    synchronized boolean setPhotoCleanupEnabled(boolean enabled) {
+        return preferences.edit()
+                .putBoolean(PREF_PHOTO_CLEANUP, enabled)
                 .commit();
     }
 
@@ -106,7 +120,10 @@ final class SleepMaintenanceReportStore {
             int pets,
             int faces,
             int recordsMerged,
-            int likesRemoved
+            int likesRemoved,
+            int photosRetained,
+            int photosDeleted,
+            int photoGroups
     ) {
         long now = System.currentTimeMillis();
         preferences.edit()
@@ -119,6 +136,9 @@ final class SleepMaintenanceReportStore {
                 .putInt(PREF_FACES, faces)
                 .putInt(PREF_RECORDS_MERGED, recordsMerged)
                 .putInt(PREF_LIKES_REMOVED, likesRemoved)
+                .putInt(PREF_PHOTOS_RETAINED, photosRetained)
+                .putInt(PREF_PHOTOS_DELETED, photosDeleted)
+                .putInt(PREF_PHOTO_GROUPS, photoGroups)
                 .commit();
     }
 }

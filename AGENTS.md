@@ -43,7 +43,9 @@ The current milestones are:
    healthy, and thermally safe; maintenance may validate and consolidate
    semantically duplicate records but never opens sensors, uses the network,
    trains models, controls the body, invents facts, or automatically deletes a
-   distinct explicit memory; and
+   distinct explicit fact memory; a separately opted-in photo policy may delete
+   explicitly unrecognized, unnamed visual-history captures and groups retained
+   named photos; and
 7. no language-model or vision-language-model inference runs yet; local object
    detection and face-embedding inference do.
 
@@ -101,10 +103,12 @@ architecture.
 - Preserve Spanish user-facing copy unless a product change explicitly introduces
   localization.
 - Durable fact or face memory must be explicit, inspectable, locally erasable, and
-  encrypted at rest. The explicit “¿qué ves?” flow retains every completed frame
-  in private, inspectable, locally erasable troubleshooting history; other camera
-  flows must not retain frames by default. Never use a language model to guess
-  identity.
+  encrypted at rest. The explicit “¿qué ves?” flow initially retains every
+  completed frame in private, inspectable, locally erasable troubleshooting
+  history; the separately opted-in sleep policy may delete only captures marked
+  unrecognized and still unnamed.
+  Other camera flows must not retain frames by default. Never use a language
+  model to guess identity.
 - A complete bounded declaration such as “la comida favorita de Pedro es la
   pasta”, “a Pedro le gusta el fútbol”, or “Pedro tiene 10 años” is itself an
   explicit fact-memory instruction and may be stored immediately with a visible
@@ -119,6 +123,12 @@ architecture.
   distinct facts and must leave any unreadable encrypted registry untouched.
   Weight updates, synthetic memories, automatic forgetting, sensor activation,
   network access, and physical motion are outside the shipped sleep boundary.
+- Visual-history photo cleanup is the narrow destructive exception: it must be a
+  separate unlocked owner opt-in, may delete only captures with a conclusive
+  no-object/error result and no later person/pet name, and must report aggregate
+  deletion counts.
+  Photo subject associations are explicit, inspectable, erasable, and encrypted;
+  object-class detection alone must never guess an individual pet's identity.
 - A confirmed name on an “¿qué ves?” photo is explicit face enrollment. It
   requires an unlocked on-screen confirmation, stores only a bounded encrypted
   embedding/name/source link in the face registry, and may be reused only for

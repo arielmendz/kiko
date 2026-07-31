@@ -58,6 +58,7 @@ public final class MainActivity extends ComponentActivity implements Recognition
     private SceneCameraCapture sceneCameraCapture;
     private LocalVisionEngine localVisionEngine;
     private FaceIdentityStore faceIdentityStore;
+    private VisualHistoryStore visualHistoryStore;
     private PersonMemoryStore personMemoryStore;
     private PetMemoryStore petMemoryStore;
     private OfflineSpanishSpeaker offlineSpanishSpeaker;
@@ -84,6 +85,7 @@ public final class MainActivity extends ComponentActivity implements Recognition
         sceneCameraCapture = new SceneCameraCapture(this);
         localVisionEngine = new LocalVisionEngine(this);
         faceIdentityStore = new FaceIdentityStore(this);
+        visualHistoryStore = new VisualHistoryStore(this);
         personMemoryStore = new PersonMemoryStore(this);
         petMemoryStore = new PetMemoryStore(this);
         offlineSpanishSpeaker = new OfflineSpanishSpeaker(this);
@@ -880,6 +882,9 @@ public final class MainActivity extends ComponentActivity implements Recognition
                         personName,
                         enrollmentEmbedding
                 );
+        if (enrolled) {
+            visualHistoryStore.setPersonName(historyRecordId, personName);
+        }
         respondToSceneRequest(
                 enrolled
                         ? getString(

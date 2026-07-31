@@ -96,12 +96,14 @@ the name, source-photo link, and normalized 128-value embedding in an AES-GCM
 registry protected by Android Keystore. Saying “cancelar”, timing out, rejecting
 the dialog, or failing validation leaves the photo unnamed and stores no identity.
 
-The **Historial visual** screen shows every saved capture newest first. The user
-can inspect enrolled names, forget one identity while keeping its photo, delete
-one capture and its linked identity, or erase all captures and identities. These
-owner operations require the phone to be unlocked. Records remain until deletion
-or app uninstall; there is intentionally no automatic retention cap in this
-troubleshooting milestone. Names created by an older non-biometric build remain
+The **Historial visual** screen groups named captures by person or pet and leaves
+unnamed captures in a separate group. The user can inspect enrolled names, forget
+one identity while keeping its photo, explicitly associate a photo with a cat or
+dog already stored in **Memorias**, remove that association, delete one capture
+and its linked identity, or erase all captures and identities. YOLO detects only
+the `cat`/`dog` class and cannot identify an individual pet, so Kiko never assigns
+a pet name without this unlocked owner choice. Typed photo/name associations use
+a separate AES-GCM registry. Names created by an older non-biometric build remain
 visible as legacy labels and are not silently enrolled.
 
 If the vision artifact is absent or unverified, Kiko does not open the camera and
@@ -165,8 +167,8 @@ off by default. Both periodic and requested work use Android WorkManager and wai
 until the device is charging and idle, battery and storage are not low, and the
 thermal status is below severe. Scheduling is inexact by design.
 
-Each run decrypts and validates the existing person, pet, and face registries
-locally. It can merge duplicate canonical person/pet records using the most recent
+Each run decrypts and validates the existing person, pet, face, and typed visual
+subject registries locally. It can merge duplicate canonical person/pet records using the most recent
 replacement fields, preserve older populated fields when the newer duplicate is
 missing one, and remove accent-insensitive duplicate likes, including a like that
 duplicates the same favorite food. It refuses to merge records if doing so would
@@ -174,10 +176,24 @@ discard distinct likes beyond the schema limit. Each changed structured registry
 is republished atomically under its existing AES-GCM key. An unreadable registry
 is left untouched and makes the run fail visibly.
 
+Sleep also restores an encrypted person association for a face-enrollment source
+photo and counts named photo groups. A separate **Borrar fotos no reconocidas** switch
+is initially off and remains independent from automatic scheduling. When the
+unlocked owner enables it, a completed cycle permanently deletes each new-format
+visual-history photo whose saved outcome conclusively says YOLO accepted no object
+or analysis failed, unless a person/pet name was later attached. Recognized but
+unnamed objects and conservative legacy records remain. It never assigns a pet
+based only on the object class. The report adds aggregate retained-photo,
+deleted-photo, and group counts without storing names.
+Photo deletion is per record rather than one gallery-wide transaction: a failure
+stops the run and is visible, while photos already deleted earlier in that cycle
+cannot be restored.
+
 This first sleep cycle is maintenance, not autonomous learning. It does not open
 the microphone or camera, access the network, start model inference, update model
-weights, generate facts, delete distinct explicit memories, or control the future
-BLE body. Its persistent report contains timestamps and aggregate counts only—no
+weights, generate facts, delete distinct explicit fact memories, or control the future
+BLE body. Photo deletion occurs only under the separate policy above. Its
+persistent report contains timestamps and aggregate counts only—no
 names, facts, images, embeddings, or speech. Face identities are validated but no
 derived face model or prototype is currently written.
 
@@ -210,7 +226,7 @@ path.
   screen, pet-memory routing, and offline spoken answers still require
   physical-device validation.
 - WorkManager constraint behavior, thermal retry, process-restart persistence,
-  registry consolidation, and the **Sueño** report/control screen still require
+  registry consolidation, photo cleanup, and the **Sueño** report/control screen still require
   physical-device validation. Android chooses the actual execution time and may
   delay or skip a periodic window while constraints remain unmet.
 - “¿Qué ves?” is limited to the 80 COCO classes known by YOLO26n. It cannot
@@ -237,10 +253,10 @@ path.
 - Face crop quality, SFace latency/matching, encrypted enrollment, the
   post-detection name flow, and identity deletion still require physical-device
   validation.
-- Visual-history rendering, persistence across process restarts, deletion, and
-  storage behavior still require physical-device validation. Because every
-  successful capture is retained until explicit deletion, storage usage can grow
-  without bound.
+- Visual-history grouping, encrypted subject associations, pet labeling,
+  persistence across process restarts, deletion, and storage behavior still
+  require physical-device validation. Storage can grow without bound while the
+  separate unrecognized-photo cleanup policy remains disabled.
 - The Raspberry Pi safety core and two-servo simulator exist, but BlueZ
   advertising, GPIO output, hardware calibration, and physical-servo validation
   are not implemented.
@@ -275,8 +291,8 @@ path.
 8. **BLE body link (scaffolded):** finish the Android BLE central and Raspberry Pi
    BlueZ peripheral around the versioned GATT command/event protocol, bonding,
    capability negotiation, heartbeats, reconnects, and emergency stop.
-9. **Local memory (face, person, cat/dog, and safe sleep-maintenance portions
-   delivered):** extend the shipped encrypted registries with general confirmed
+9. **Local memory (face, person, cat/dog, grouped visual history, and safe
+   sleep-maintenance portions delivered):** extend the shipped encrypted registries with general confirmed
    facts, observation memories, derived indexes, and benchmark-gated opt-in
    personalization without silent forgetting.
 10. **Local vision expansion:** benchmark richer app-owned scene and face

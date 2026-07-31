@@ -217,12 +217,16 @@ public final class LocalVisionEngine implements AutoCloseable {
                     SpanishSceneDescription.containsPerson(labels);
             boolean shouldAskPersonName = false;
             float[] enrollmentEmbedding = null;
+            VisualHistoryRecord.SubjectKind subjectKind = null;
+            String subjectName = null;
             String description;
             if (personDetected) {
                 LocalFaceRecognizer.Result faceResult =
                         faceRecognizer.recognize(oriented);
                 switch (faceResult.getStatus()) {
                     case MATCHED:
+                        subjectKind = VisualHistoryRecord.SubjectKind.PERSON;
+                        subjectName = faceResult.getName();
                         description = String.format(
                                 java.util.Locale.getDefault(),
                                 knownPersonDescription,
@@ -251,7 +255,10 @@ public final class LocalVisionEngine implements AutoCloseable {
             VisualHistoryRecord historyRecord = saveHistory(
                     oriented,
                     capturedAtEpochMillis,
-                    description
+                    description,
+                    !labels.isEmpty(),
+                    subjectKind,
+                    subjectName
             );
             boolean finalShouldAskPersonName = shouldAskPersonName;
             float[] finalEnrollmentEmbedding = enrollmentEmbedding;
@@ -292,8 +299,35 @@ public final class LocalVisionEngine implements AutoCloseable {
             long capturedAtEpochMillis,
             String description
     ) {
+        return saveHistory(
+                bitmap,
+                capturedAtEpochMillis,
+                description,
+                false,
+                null,
+                null
+        );
+    }
+
+    private VisualHistoryRecord saveHistory(
+            Bitmap bitmap,
+            long capturedAtEpochMillis,
+            String description,
+            boolean recognized,
+            VisualHistoryRecord.SubjectKind subjectKind,
+            String subjectName
+    ) {
         try {
-            return visualHistory.save(bitmap, capturedAtEpochMillis, description);
+            return visualHistory.save(
+                    bitmap,
+                    capturedAtEpochMillis,
+                    description,
+                    recognized
+                            ? VisualHistoryRecord.RecognitionStatus.RECOGNIZED
+                            : VisualHistoryRecord.RecognitionStatus.UNRECOGNIZED,
+                    subjectKind,
+                    subjectName
+            );
         } catch (Exception error) {
             Log.e(TAG, "Could not save visual history capture", error);
             return null;

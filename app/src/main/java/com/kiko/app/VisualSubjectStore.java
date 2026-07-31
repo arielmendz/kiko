@@ -11,110 +11,108 @@ import java.security.KeyStore;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 
-public final class FaceIdentityStore {
-    private static final String TAG = "KikoFaces";
+final class VisualSubjectStore {
+    private static final String TAG = "KikoVisualSubjects";
     private static final String KEYSTORE_PROVIDER = "AndroidKeyStore";
-    private static final String KEY_ALIAS = "kiko_face_identities";
-    private static final String PREFS_NAME = "face_identities";
+    private static final String KEY_ALIAS = "kiko_visual_subjects";
+    private static final String PREFS_NAME = "visual_subjects";
     private static final String PREF_CIPHERTEXT = "registry_ciphertext";
     private static final String PREF_IV = "registry_iv";
 
     private final SharedPreferences preferences;
 
-    public FaceIdentityStore(Context context) {
+    VisualSubjectStore(Context context) {
         preferences = context.getApplicationContext().getSharedPreferences(
                 PREFS_NAME,
                 Context.MODE_PRIVATE
         );
     }
 
-    public synchronized List<FaceIdentityRecord> list() {
+    synchronized List<VisualSubjectRecord> list() {
         try {
             return Collections.unmodifiableList(loadRecords());
         } catch (Exception error) {
-            Log.e(TAG, "Encrypted face identities could not be read", error);
+            Log.e(TAG, "Encrypted visual subjects could not be read", error);
             return Collections.emptyList();
         }
     }
 
-    public synchronized boolean enroll(
-            String sourceHistoryId,
-            String name,
-            float[] embedding
+    synchronized VisualSubjectLoadResult loadForMaintenance() {
+        try {
+            return VisualSubjectLoadResult.success(loadRecords());
+        } catch (Exception error) {
+            Log.e(TAG, "Visual subject maintenance validation failed", error);
+            return VisualSubjectLoadResult.failure();
+        }
+    }
+
+    synchronized boolean set(
+            String historyRecordId,
+            VisualHistoryRecord.SubjectKind kind,
+            String name
     ) {
-        if (sourceHistoryId == null
-                || sourceHistoryId.isEmpty()
+        if (historyRecordId == null
+                || historyRecordId.isEmpty()
+                || kind == null
                 || name == null
                 || name.trim().isEmpty()) {
             return false;
         }
         try {
-            List<FaceIdentityRecord> records = loadRecords();
-            records.removeIf(record ->
-                    sourceHistoryId.equals(record.getSourceHistoryId()));
-            records.add(new FaceIdentityRecord(
-                    UUID.randomUUID().toString(),
-                    sourceHistoryId,
-                    name.trim(),
-                    System.currentTimeMillis(),
-                    FaceEmbeddingMatcher.normalize(embedding)
+            List<VisualSubjectRecord> records = loadRecords();
+            records.removeIf(record -> record.getHistoryRecordId().equals(
+                    historyRecordId
+            ));
+            records.add(new VisualSubjectRecord(
+                    historyRecordId,
+                    kind,
+                    name.trim()
             ));
             saveRecords(records);
             return true;
         } catch (Exception error) {
-            Log.e(TAG, "Face identity could not be enrolled", error);
+            Log.e(TAG, "Visual subject could not be saved", error);
             return false;
         }
     }
 
-    public synchronized boolean forgetBySourceHistoryId(String sourceHistoryId) {
+    synchronized boolean delete(String historyRecordId) {
         try {
-            List<FaceIdentityRecord> records = loadRecords();
+            List<VisualSubjectRecord> records = loadRecords();
             boolean removed = records.removeIf(record ->
-                    record.getSourceHistoryId().equals(sourceHistoryId));
+                    record.getHistoryRecordId().equals(historyRecordId));
             if (removed) {
                 saveRecords(records);
             }
             return true;
         } catch (Exception error) {
-            Log.e(TAG, "Face identity could not be forgotten", error);
+            Log.e(TAG, "Visual subject could not be deleted", error);
             return false;
         }
     }
 
-    public synchronized boolean deleteAll() {
+    synchronized boolean deleteAll() {
         return preferences.edit()
                 .remove(PREF_CIPHERTEXT)
                 .remove(PREF_IV)
                 .commit();
     }
 
-    synchronized FaceMaintenanceResult loadForMaintenance() {
-        try {
-            return FaceMaintenanceResult.success(loadRecords());
-        } catch (Exception error) {
-            Log.e(TAG, "Face registry maintenance validation failed", error);
-            return FaceMaintenanceResult.failure();
-        }
-    }
-
-    private List<FaceIdentityRecord> loadRecords() throws Exception {
+    private List<VisualSubjectRecord> loadRecords() throws Exception {
         String encodedCiphertext = preferences.getString(PREF_CIPHERTEXT, null);
         String encodedIv = preferences.getString(PREF_IV, null);
         if (encodedCiphertext == null && encodedIv == null) {
             return new ArrayList<>();
         }
         if (encodedCiphertext == null || encodedIv == null) {
-            throw new IllegalStateException("Incomplete encrypted face registry");
+            throw new IllegalStateException("Incomplete encrypted visual subjects");
         }
-
         Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
         cipher.init(
                 Cipher.DECRYPT_MODE,
@@ -124,21 +122,21 @@ public final class FaceIdentityStore {
                         Base64.decode(encodedIv, Base64.NO_WRAP)
                 )
         );
-        return new ArrayList<>(FaceIdentityCodec.decode(cipher.doFinal(
+        return new ArrayList<>(VisualSubjectCodec.decode(cipher.doFinal(
                 Base64.decode(encodedCiphertext, Base64.NO_WRAP)
         )));
     }
 
-    private void saveRecords(List<FaceIdentityRecord> records) throws Exception {
+    private void saveRecords(List<VisualSubjectRecord> records) throws Exception {
         if (records.isEmpty()) {
             if (!deleteAll()) {
-                throw new IllegalStateException("Face registry could not be cleared");
+                throw new IllegalStateException("Visual subjects could not be cleared");
             }
             return;
         }
         Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
         cipher.init(Cipher.ENCRYPT_MODE, getOrCreateSecretKey());
-        byte[] ciphertext = cipher.doFinal(FaceIdentityCodec.encode(records));
+        byte[] ciphertext = cipher.doFinal(VisualSubjectCodec.encode(records));
         boolean saved = preferences.edit()
                 .putString(
                         PREF_CIPHERTEXT,
@@ -150,7 +148,7 @@ public final class FaceIdentityStore {
                 )
                 .commit();
         if (!saved) {
-            throw new IllegalStateException("Face registry could not be saved");
+            throw new IllegalStateException("Visual subjects could not be saved");
         }
     }
 
@@ -161,7 +159,6 @@ public final class FaceIdentityStore {
             return ((KeyStore.SecretKeyEntry) keyStore.getEntry(KEY_ALIAS, null))
                     .getSecretKey();
         }
-
         KeyGenerator keyGenerator = KeyGenerator.getInstance(
                 KeyProperties.KEY_ALGORITHM_AES,
                 KEYSTORE_PROVIDER

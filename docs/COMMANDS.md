@@ -98,8 +98,13 @@ admits uncertainty instead of inventing current facts.
 bounded rear-camera still after showing a short live preview, passes it to the
 current `LocalVisionEngine`, and releases the camera. Kiko's eyes squint from
 command acceptance through completion. Every completed capture and its exact
-Spanish response are retained in Kiko's private visual troubleshooting history
-until the user deletes that record, erases all history, or uninstalls the app.
+Spanish response are initially retained in Kiko's private visual troubleshooting
+history until the user deletes that record, erases all history, enables the
+separate sleep policy that deletes conclusively unrecognized and still-unnamed
+photos, or uninstalls the app. Named
+photos are grouped through an encrypted person/pet association. Because YOLO
+cannot identify individual pets, a pet association requires an unlocked explicit
+choice from stored cat/dog memory.
 The response describes only the supported visible properties in Spanish. Person
 identity comes only from the separate local enrolled-face matcher.
 
@@ -133,9 +138,10 @@ uses an external face-search service.
 
 Enrollment is explicit: the user supplies a name, Kiko confirms it, checks that
 one usable face is present, and requires an on-screen owner confirmation while
-the phone is unlocked before storing an encrypted embedding. The already-retained
-“¿qué ves?” history photo is the inspectable source for this first enrollment
-path; other future face flows discard source photos by default. Recognition below
+the phone is unlocked before storing an encrypted embedding. The “¿qué ves?”
+history photo is the inspectable source for this first enrollment path and is
+protected from unrecognized-photo cleanup by its encrypted identity link; other future
+face flows discard source photos by default. Recognition below
 the configured threshold or ambiguity margin returns unknown rather than the
 nearest name. Names and embeddings can be inspected through their source records
 and deleted locally; targeted deletion and erase-all use the same unlocked owner

@@ -31,6 +31,7 @@ public final class VisualHistoryActivity extends Activity {
 
     private VisualHistoryStore historyStore;
     private FaceIdentityStore faceIdentityStore;
+    private PetMemoryStore petMemoryStore;
     private HistoryAdapter adapter;
     private Button deleteAllButton;
     private Map<String, FaceIdentityRecord> identitiesBySource =
@@ -41,6 +42,7 @@ public final class VisualHistoryActivity extends Activity {
         super.onCreate(savedInstanceState);
         historyStore = new VisualHistoryStore(this);
         faceIdentityStore = new FaceIdentityStore(this);
+        petMemoryStore = new PetMemoryStore(this);
         adapter = new HistoryAdapter();
         setContentView(createContentView());
     }
@@ -125,10 +127,37 @@ public final class VisualHistoryActivity extends Activity {
             identities.put(identity.getSourceHistoryId(), identity);
         }
         identitiesBySource = identities;
-        adapter.setRecords(records);
+        adapter.setRecords(VisualHistoryGrouping.arrange(
+                applyIdentityNames(records, identities)
+        ));
         deleteAllButton.setEnabled(
                 !records.isEmpty() || !identities.isEmpty()
         );
+    }
+
+    private static List<VisualHistoryRecord> applyIdentityNames(
+            List<VisualHistoryRecord> records,
+            Map<String, FaceIdentityRecord> identities
+    ) {
+        java.util.ArrayList<VisualHistoryRecord> output =
+                new java.util.ArrayList<>();
+        for (VisualHistoryRecord record : records) {
+            FaceIdentityRecord identity = identities.get(record.getId());
+            if (identity == null) {
+                output.add(record);
+            } else {
+                output.add(new VisualHistoryRecord(
+                        record.getId(),
+                        record.getCapturedAtEpochMillis(),
+                        record.getDescription(),
+                        record.getRecognitionStatus(),
+                        VisualHistoryRecord.SubjectKind.PERSON,
+                        identity.getName(),
+                        record.getImageFile()
+                ));
+            }
+        }
+        return output;
     }
 
     private void confirmDelete(VisualHistoryRecord record) {
@@ -244,6 +273,65 @@ public final class VisualHistoryActivity extends Activity {
         ).show();
     }
 
+    private void choosePetForPhoto(VisualHistoryRecord record) {
+        if (!isDeviceUnlocked()) {
+            showOwnerUnlockRequired();
+            return;
+        }
+        List<PetMemoryRecord> pets = petMemoryStore.list();
+        if (pets.isEmpty()) {
+            Toast.makeText(
+                    this,
+                    R.string.visual_history_no_pets,
+                    Toast.LENGTH_LONG
+            ).show();
+            return;
+        }
+        String[] labels = new String[pets.size()];
+        for (int index = 0; index < pets.size(); index++) {
+            PetMemoryRecord pet = pets.get(index);
+            labels[index] = getString(
+                    R.string.visual_history_pet_choice,
+                    pet.getDisplayName(),
+                    pet.getKind().name().toLowerCase(java.util.Locale.ROOT)
+            );
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.visual_history_choose_pet)
+                .setItems(labels, (dialog, which) -> {
+                    PetMemoryRecord pet = pets.get(which);
+                    if (!historyStore.setSubject(
+                            record.getId(),
+                            VisualHistoryRecord.SubjectKind.PET,
+                            pet.getDisplayName()
+                    )) {
+                        showSubjectUpdateError();
+                    }
+                    reloadHistory();
+                })
+                .setNegativeButton(R.string.action_cancel, null)
+                .show();
+    }
+
+    private void clearSubjectFromPhoto(VisualHistoryRecord record) {
+        if (!isDeviceUnlocked()) {
+            showOwnerUnlockRequired();
+            return;
+        }
+        if (!historyStore.clearSubject(record.getId())) {
+            showSubjectUpdateError();
+        }
+        reloadHistory();
+    }
+
+    private void showSubjectUpdateError() {
+        Toast.makeText(
+                this,
+                R.string.visual_history_subject_update_failed,
+                Toast.LENGTH_LONG
+        ).show();
+    }
+
     private TextView textView(String text, int sizeSp, int colorResource) {
         TextView view = new TextView(this);
         view.setText(text);
@@ -309,6 +397,12 @@ public final class VisualHistoryActivity extends Activity {
             }
 
             VisualHistoryRecord record = getItem(position);
+            if (VisualHistoryGrouping.startsGroup(records, position)) {
+                row.groupHeader.setText(groupHeader(record, position));
+                row.groupHeader.setVisibility(View.VISIBLE);
+            } else {
+                row.groupHeader.setVisibility(View.GONE);
+            }
             row.image.setImageDrawable(null);
             Bitmap thumbnail = decodeThumbnail(record);
             if (thumbnail != null) {
@@ -328,15 +422,18 @@ public final class VisualHistoryActivity extends Activity {
                     identitiesBySource.get(record.getId());
             String displayedName = identity != null
                     ? identity.getName()
-                    : record.getPersonName();
+                    : record.getSubjectName();
+            VisualHistoryRecord.SubjectKind displayedKind = identity != null
+                    ? VisualHistoryRecord.SubjectKind.PERSON
+                    : record.getSubjectKind();
             if (displayedName == null) {
                 row.personName.setVisibility(View.GONE);
                 row.forgetPerson.setVisibility(View.GONE);
             } else {
                 row.personName.setText(getString(
-                        identity != null
-                                ? R.string.visual_history_person_name
-                                : R.string.visual_history_legacy_person_name,
+                        displayedKind == VisualHistoryRecord.SubjectKind.PET
+                                ? R.string.visual_history_pet_name
+                                : R.string.visual_history_person_name,
                         displayedName
                 ));
                 row.personName.setVisibility(View.VISIBLE);
@@ -351,8 +448,43 @@ public final class VisualHistoryActivity extends Activity {
                     row.forgetPerson.setOnClickListener(null);
                 }
             }
+            boolean canTagPet = identity == null
+                    && displayedKind != VisualHistoryRecord.SubjectKind.PERSON;
+            row.tagPet.setText(displayedKind == VisualHistoryRecord.SubjectKind.PET
+                    ? R.string.action_change_pet
+                    : R.string.action_tag_pet);
+            row.tagPet.setVisibility(canTagPet ? View.VISIBLE : View.GONE);
+            row.tagPet.setOnClickListener(canTagPet
+                    ? view -> choosePetForPhoto(record)
+                    : null);
+            boolean canClearSubject = identity == null && displayedName != null;
+            row.clearSubject.setVisibility(
+                    canClearSubject ? View.VISIBLE : View.GONE
+            );
+            row.clearSubject.setOnClickListener(canClearSubject
+                    ? view -> clearSubjectFromPhoto(record)
+                    : null);
             row.delete.setOnClickListener(view -> confirmDelete(record));
             return recycled;
+        }
+
+        private String groupHeader(VisualHistoryRecord record, int position) {
+            int count = VisualHistoryGrouping.groupSize(records, position);
+            if (record.getSubjectKind() == VisualHistoryRecord.SubjectKind.PERSON) {
+                return getString(
+                        R.string.visual_history_person_group,
+                        record.getSubjectName(),
+                        count
+                );
+            }
+            if (record.getSubjectKind() == VisualHistoryRecord.SubjectKind.PET) {
+                return getString(
+                        R.string.visual_history_pet_group,
+                        record.getSubjectName(),
+                        count
+                );
+            }
+            return getString(R.string.visual_history_unknown_group, count);
         }
     }
 
@@ -364,6 +496,11 @@ public final class VisualHistoryActivity extends Activity {
         background.setColor(getColor(R.color.kiko_surface));
         background.setCornerRadius(dp(16));
         card.setBackground(background);
+
+        TextView groupHeader = textView("", 20, R.color.kiko_accent);
+        groupHeader.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        groupHeader.setPadding(0, 0, 0, dp(10));
+        card.addView(groupHeader);
 
         ImageView image = new ImageView(this);
         image.setAdjustViewBounds(true);
@@ -400,6 +537,25 @@ public final class VisualHistoryActivity extends Activity {
         forgetParams.gravity = Gravity.END;
         card.addView(forgetPerson, forgetParams);
 
+        Button tagPet = new Button(this);
+        tagPet.setText(R.string.action_tag_pet);
+        LinearLayout.LayoutParams tagPetParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        tagPetParams.gravity = Gravity.END;
+        card.addView(tagPet, tagPetParams);
+
+        Button clearSubject = new Button(this);
+        clearSubject.setText(R.string.action_clear_photo_name);
+        clearSubject.setVisibility(View.GONE);
+        LinearLayout.LayoutParams clearSubjectParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        clearSubjectParams.gravity = Gravity.END;
+        card.addView(clearSubject, clearSubjectParams);
+
         Button delete = new Button(this);
         delete.setText(R.string.action_delete);
         LinearLayout.LayoutParams deleteParams = new LinearLayout.LayoutParams(
@@ -410,39 +566,51 @@ public final class VisualHistoryActivity extends Activity {
         card.addView(delete, deleteParams);
         return new HistoryRow(
                 card,
+                groupHeader,
                 image,
                 timestamp,
                 description,
                 personName,
                 forgetPerson,
+                tagPet,
+                clearSubject,
                 delete
         );
     }
 
     private static final class HistoryRow {
         private final View root;
+        private final TextView groupHeader;
         private final ImageView image;
         private final TextView timestamp;
         private final TextView description;
         private final TextView personName;
         private final Button forgetPerson;
+        private final Button tagPet;
+        private final Button clearSubject;
         private final Button delete;
 
         private HistoryRow(
                 View root,
+                TextView groupHeader,
                 ImageView image,
                 TextView timestamp,
                 TextView description,
                 TextView personName,
                 Button forgetPerson,
+                Button tagPet,
+                Button clearSubject,
                 Button delete
         ) {
             this.root = root;
+            this.groupHeader = groupHeader;
             this.image = image;
             this.timestamp = timestamp;
             this.description = description;
             this.personName = personName;
             this.forgetPerson = forgetPerson;
+            this.tagPet = tagPet;
+            this.clearSubject = clearSubject;
             this.delete = delete;
         }
     }

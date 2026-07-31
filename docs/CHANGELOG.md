@@ -74,3 +74,8 @@
   duplicates, preserves distinct explicit memories, and reports count-only local
   results without training models or activating sensors, network access, or body
   motion.
+- Group visual-history photos by encrypted person/pet association, tag pets only
+  through an explicit unlocked choice from stored cat/dog memory, and add a
+  separate initially-disabled sleep policy that deletes only conclusively
+  unrecognized, still-unnamed photos while reporting retained/deleted/group
+  counts without exposing names.
