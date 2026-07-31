@@ -58,12 +58,14 @@ public final class MainActivity extends ComponentActivity implements Recognition
     private SceneCameraCapture sceneCameraCapture;
     private LocalVisionEngine localVisionEngine;
     private FaceIdentityStore faceIdentityStore;
+    private PersonMemoryStore personMemoryStore;
     private OfflineSpanishSpeaker offlineSpanishSpeaker;
     private String recognitionLanguage = SpeechLanguageSelector.PREFERRED_SPANISH;
     private boolean activityStarted;
     private boolean listening;
     private boolean wakeWordDetected;
     private boolean sceneRequestInProgress;
+    private boolean personMemoryRequestInProgress;
     private boolean cameraPermissionPending;
     private boolean supportCheckInProgress;
     private boolean modelDownloadRequested;
@@ -81,6 +83,7 @@ public final class MainActivity extends ComponentActivity implements Recognition
         sceneCameraCapture = new SceneCameraCapture(this);
         localVisionEngine = new LocalVisionEngine(this);
         faceIdentityStore = new FaceIdentityStore(this);
+        personMemoryStore = new PersonMemoryStore(this);
         offlineSpanishSpeaker = new OfflineSpanishSpeaker(this);
         recognizerIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
                 .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
@@ -107,6 +110,7 @@ public final class MainActivity extends ComponentActivity implements Recognition
         handler.removeCallbacks(retryPersonNameListening);
         listening = false;
         sceneRequestInProgress = false;
+        personMemoryRequestInProgress = false;
         awaitingPersonName = false;
         pendingPersonHistoryId = null;
         pendingPersonEmbedding = null;
@@ -222,6 +226,12 @@ public final class MainActivity extends ComponentActivity implements Recognition
                 new Intent(this, VisualHistoryActivity.class)
         ));
 
+        Button personMemoriesButton = new Button(this);
+        personMemoriesButton.setText(R.string.action_person_memories);
+        personMemoriesButton.setOnClickListener(view -> startActivity(
+                new Intent(this, PersonMemoryActivity.class)
+        ));
+
         content.addView(
                 eyesView,
                 new LinearLayout.LayoutParams(
@@ -240,6 +250,7 @@ public final class MainActivity extends ComponentActivity implements Recognition
         content.addView(detailView);
         content.addView(modelsButton);
         content.addView(visualHistoryButton);
+        content.addView(personMemoriesButton);
         scroll.addView(
                 content,
                 new FrameLayout.LayoutParams(
@@ -381,6 +392,7 @@ public final class MainActivity extends ComponentActivity implements Recognition
         if (!activityStarted
                 || listening
                 || sceneRequestInProgress
+                || personMemoryRequestInProgress
                 || supportCheckInProgress
                 || speechRecognizer == null) {
             return;
@@ -397,7 +409,7 @@ public final class MainActivity extends ComponentActivity implements Recognition
 
     private void scheduleRestart(long delayMillis) {
         listening = false;
-        if (!sceneRequestInProgress) {
+        if (!sceneRequestInProgress && !personMemoryRequestInProgress) {
             eyesView.setMode(KikoEyeMotion.Mode.RESTING);
         }
         if (activityStarted && speechRecognizer != null) {
@@ -406,14 +418,14 @@ public final class MainActivity extends ComponentActivity implements Recognition
         }
     }
 
-    private void inspectResults(Bundle results) {
+    private void inspectResults(Bundle results, boolean finalResults) {
         ArrayList<String> hypotheses =
                 results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
         if (hypotheses == null || hypotheses.isEmpty()) {
             return;
         }
 
-        Log.d(TAG, "Recognition hypotheses: " + hypotheses);
+        Log.d(TAG, "Recognition hypotheses received: " + hypotheses.size());
         showDetail(getString(R.string.detail_heard, hypotheses.get(0)));
         boolean containsWakeWord = WakeWordMatcher.containsKiko(hypotheses);
         if (containsWakeWord) {
@@ -423,10 +435,82 @@ public final class MainActivity extends ComponentActivity implements Recognition
             showStatus(R.string.status_detected, true);
         }
         if (!sceneRequestInProgress
+                && !personMemoryRequestInProgress
                 && (wakeWordDetected || containsWakeWord)
                 && SpanishCommandMatcher.containsDescribeScene(hypotheses)) {
             beginSceneRequest();
+            return;
         }
+        if (finalResults
+                && !sceneRequestInProgress
+                && !personMemoryRequestInProgress
+                && (wakeWordDetected || containsWakeWord)) {
+            PersonMemoryCommand memoryCommand =
+                    SpanishPersonMemoryParser.parse(hypotheses);
+            if (memoryCommand != null) {
+                beginPersonMemoryRequest(memoryCommand);
+            }
+        }
+    }
+
+    private void beginPersonMemoryRequest(PersonMemoryCommand command) {
+        personMemoryRequestInProgress = true;
+        handler.removeCallbacks(restartListening);
+        handler.removeCallbacks(expireCommandWindow);
+        listening = false;
+        eyesView.setMode(KikoEyeMotion.Mode.RESTING);
+        if (speechRecognizer != null) {
+            speechRecognizer.cancel();
+        }
+
+        String response;
+        int detailResource;
+        if (command.isUpdate()) {
+            PersonMemoryRecord updated = personMemoryStore.apply(command);
+            if (updated == null) {
+                response = getString(R.string.person_memory_update_failed_response);
+                detailResource = R.string.detail_person_memory_update_failed;
+            } else {
+                response = SpanishPersonMemoryResponses.updateResponse(command);
+                detailResource = R.string.detail_person_memory_updated;
+            }
+        } else {
+            PersonMemoryRecord record = personMemoryStore.find(
+                    command.getPersonName()
+            );
+            response = SpanishPersonMemoryResponses.queryResponse(
+                    command,
+                    record
+            );
+            detailResource = R.string.detail_person_memory_consulted;
+        }
+        respondToPersonMemoryRequest(response, detailResource);
+    }
+
+    private void respondToPersonMemoryRequest(
+            String response,
+            int detailResource
+    ) {
+        showStatus(response, true);
+        showDetail(detailResource);
+        offlineSpanishSpeaker.speak(response, new OfflineSpanishSpeaker.Callback() {
+            @Override
+            public void onFinished() {
+                finishPersonMemoryRequest();
+            }
+
+            @Override
+            public void onUnavailable() {
+                finishPersonMemoryRequest();
+            }
+        });
+    }
+
+    private void finishPersonMemoryRequest() {
+        personMemoryRequestInProgress = false;
+        wakeWordDetected = false;
+        handler.removeCallbacks(expireCommandWindow);
+        scheduleRestart(NORMAL_RESTART_DELAY_MS);
     }
 
     private void showStatus(int stringResource, boolean highlighted) {
@@ -833,7 +917,7 @@ public final class MainActivity extends ComponentActivity implements Recognition
     }
 
     private void expireCommandWindow() {
-        if (sceneRequestInProgress) {
+        if (sceneRequestInProgress || personMemoryRequestInProgress) {
             return;
         }
         wakeWordDetected = false;
@@ -851,13 +935,15 @@ public final class MainActivity extends ComponentActivity implements Recognition
             showDetail(R.string.detail_person_name_listening);
             return;
         }
-        if (!sceneRequestInProgress) {
+        if (!sceneRequestInProgress && !personMemoryRequestInProgress) {
             eyesView.setMode(KikoEyeMotion.Mode.LISTENING);
         }
-        if (!wakeWordDetected && !sceneRequestInProgress) {
+        if (!wakeWordDetected
+                && !sceneRequestInProgress
+                && !personMemoryRequestInProgress) {
             showStatus(R.string.status_listening, false);
         }
-        if (!sceneRequestInProgress) {
+        if (!sceneRequestInProgress && !personMemoryRequestInProgress) {
             showDetail(getString(R.string.detail_language_ready, recognitionLanguage));
         }
     }
@@ -881,7 +967,7 @@ public final class MainActivity extends ComponentActivity implements Recognition
             eyesView.setMode(KikoEyeMotion.Mode.RESTING);
             return;
         }
-        if (!sceneRequestInProgress) {
+        if (!sceneRequestInProgress && !personMemoryRequestInProgress) {
             eyesView.setMode(KikoEyeMotion.Mode.RESTING);
         }
         Log.d(TAG, "End of speech");
@@ -895,7 +981,7 @@ public final class MainActivity extends ComponentActivity implements Recognition
             retryPersonNameOrCancel();
             return;
         }
-        if (sceneRequestInProgress) {
+        if (sceneRequestInProgress || personMemoryRequestInProgress) {
             listening = false;
             return;
         }
@@ -941,8 +1027,10 @@ public final class MainActivity extends ComponentActivity implements Recognition
             handlePersonNameResults(results);
             return;
         }
-        inspectResults(results);
-        scheduleRestart(NORMAL_RESTART_DELAY_MS);
+        inspectResults(results, true);
+        if (!sceneRequestInProgress && !personMemoryRequestInProgress) {
+            scheduleRestart(NORMAL_RESTART_DELAY_MS);
+        }
     }
 
     @Override
@@ -950,7 +1038,7 @@ public final class MainActivity extends ComponentActivity implements Recognition
         if (awaitingPersonName) {
             return;
         }
-        inspectResults(partialResults);
+        inspectResults(partialResults, false);
     }
 
     @Override

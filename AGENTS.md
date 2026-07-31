@@ -34,7 +34,10 @@ The current milestones are:
    clear match to an explicitly enrolled encrypted identity, or asks an unknown
    person for a name and enrolls only after unlocked on-screen confirmation; face
    output is never authentication; and
-5. no language-model or vision-language-model inference runs yet; local object
+5. after “kiko”, bounded explicit person facts for favorite food, likes, and age
+   are stored in an encrypted, inspectable, locally erasable registry; bounded
+   person-memory questions return only those stored facts; and
+6. no language-model or vision-language-model inference runs yet; local object
    detection and face-embedding inference do.
 
 Do not silently weaken the local-first or BLE-body goals. Temporary platform
@@ -95,6 +98,12 @@ architecture.
   in private, inspectable, locally erasable troubleshooting history; other camera
   flows must not retain frames by default. Never use a language model to guess
   identity.
+- A complete bounded declaration such as “la comida favorita de Pedro es la
+  pasta”, “a Pedro le gusta el fútbol”, or “Pedro tiene 10 años” is itself an
+  explicit fact-memory instruction and may be stored immediately with a visible
+  “memoria actualizada” state. Unsupported or ambiguous statements must not be
+  persisted. Retrieval must return only stored structured facts and admit when a
+  requested fact is unknown.
 - A confirmed name on an “¿qué ves?” photo is explicit face enrollment. It
   requires an unlocked on-screen confirmation, stores only a bounded encrypted
   embedding/name/source link in the face registry, and may be reused only for

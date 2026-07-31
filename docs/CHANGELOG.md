@@ -59,3 +59,8 @@
 - Add unlocked **Olvidar persona**, linked photo/identity deletion, and erase-all
   behavior while preserving older name-only photo tags as non-enrolled legacy
   metadata.
+- Add encrypted structured person memory for favorite food, likes, and age;
+  recognize explicit Spanish updates after “kiko”, show “memoria actualizada”,
+  and answer bounded likes, summary, and favorite-food questions without an LLM.
+- Add an unlocked **Memorias** screen to inspect each person's stored facts,
+  forget one person, or erase all person memories locally.

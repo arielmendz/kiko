@@ -13,7 +13,9 @@ perception use case, “Kiko, ¿qué ves?”, the eyes squint, a live rear-camer
 viewport appears, Kiko captures one frame, runs a downloaded YOLO26n object
 detector locally, optionally compares one visible face with explicitly enrolled
 SFace embeddings, and speaks a short Spanish observation with a deliberately
-simple offline voice. It also provides a download-only library of local GGUF
+simple offline voice. Kiko also remembers explicitly stated favorite foods,
+likes, and ages for named people in an encrypted local registry and answers
+bounded questions about them. It provides a download-only library of local GGUF
 language models; language-model inference is not implemented yet.
 
 ## Current scope
@@ -48,6 +50,13 @@ language models; language-model inference is not implemented yet.
   Historial visual lets the unlocked user forget one identity while retaining its
   photo and removes linked identities when a photo or the complete history is
   deleted. Face matches are toy labels, never authentication.
+- After “kiko”, accepts explicit structured facts such as “la comida favorita de
+  Pedro es la pasta”, “a Pedro le gusta el fútbol”, and “Pedro tiene 10 años”. It
+  displays **memoria actualizada**, encrypts the record locally, and never infers
+  unstated facts.
+- Answers “¿qué le gusta a Pedro?”, “¿qué sabes de Pedro?”, and “¿cuál es la
+  comida favorita de Pedro?” from that encrypted registry. The unlocked
+  **Memorias** screen lists each person and supports delete-one and erase-all.
 - Speaks the displayed result with an installed Spanish TTS voice only when that
   voice declares that it does not require a network connection.
 - Offers pinned Gemma 3 1B, Bonsai 1.7B, Qwen3 0.6B, and LFM2.5 350M GGUF
@@ -91,6 +100,11 @@ unknown usable face, answer with a name (or say “cancelar”) and confirm
 name. Photo labels created by older builds remain visible as legacy labels but
 are not silently converted into biometric enrollments.
 
+For person memory, say “Kiko”, then a supported explicit fact. Kiko speaks a
+short reaction and shows **memoria actualizada**. On a later day, say “Kiko” and
+ask “¿qué le gusta a Pedro?”, “¿qué sabes de Pedro?”, or “¿cuál es la comida
+favorita de Pedro?”. Open **Memorias** to inspect or erase the structured facts.
+
 If a Spanish model needs to be downloaded, leave the phone online until the system
 speech service completes it, then close and reopen Kiko. Audio recognition remains
 on-device.
@@ -102,6 +116,8 @@ labels, or inference data anywhere. Visual-history JPEGs and labels remain in
 Kiko's private internal storage until the user deletes them or uninstalls the app.
 Face names and 128-value embeddings are additionally AES-GCM encrypted with a key
 held by Android Keystore.
+Person-memory names, favorite foods, likes, and ages use a separate AES-GCM
+registry protected by Android Keystore.
 Gemma requires accepting Google's Gemma terms on Hugging Face and entering a
 read-only Hugging Face token. The token is encrypted with Android Keystore.
 
@@ -153,6 +169,12 @@ PYTHONPATH=body/raspberry-pi/src \
 - `app/src/main/java/com/kiko/app/FaceIdentityStore.java` encrypts explicitly
   confirmed names and embeddings with Android Keystore and supports targeted or
   complete deletion.
+- `app/src/main/java/com/kiko/app/SpanishPersonMemoryParser.java` recognizes the
+  bounded person-fact declarations and three query families without a language
+  model.
+- `app/src/main/java/com/kiko/app/PersonMemoryStore.java` encrypts structured
+  person facts with Android Keystore; `PersonMemoryActivity.java` provides the
+  inspect, delete-one, and erase-all owner controls.
 - `app/src/main/java/com/kiko/app/VisualHistoryStore.java` atomically stores,
   lists, and deletes private capture/label records.
 - `app/src/main/java/com/kiko/app/VisualHistoryActivity.java` displays every saved

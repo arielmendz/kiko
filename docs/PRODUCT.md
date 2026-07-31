@@ -110,6 +110,34 @@ is absent or unverified, the capture is retained and Kiko asks the user to
 download SFace instead of guessing or opening enrollment. No image, embedding,
 name, or match leaves the device, and no vision-language model runs.
 
+## Delivered milestone: structured person memory
+
+After “kiko”, Kiko recognizes three complete, explicit fact forms without a
+language model:
+
+1. “la comida favorita de <nombre> es <comida>” replaces that person's favorite
+   food;
+2. “a <nombre> le gusta <gusto>” adds one deduplicated like; and
+3. “<nombre> tiene <1–130> años” replaces the stored age.
+
+The complete declaration is the explicit storage instruction. A successful
+update produces a short Spanish response and shows **memoria actualizada**. Names
+are limited to three words, fact values to five words, each person to twenty
+likes, and the registry to one hundred people. Unsupported or malformed claims
+are not stored.
+
+After a later wake word, “¿qué le gusta a <nombre>?”, “¿qué sabes de
+<nombre>?”, and “¿cuál es la comida favorita de <nombre>?” read only the matching
+structured record. Kiko combines known values, deduplicates a favorite food from
+general likes, and says that it does not know when the person or requested field
+is absent. It does not fill gaps with model knowledge.
+
+`PersonMemoryStore` encrypts names and facts as one AES-GCM registry under a
+separate Android Keystore key. The unlocked **Memorias** screen lists each
+person's facts and update time, deletes one complete person record, or erases the
+whole registry. Uninstall also removes it. Person facts and facial identities are
+separate stores: a face match cannot retrieve or disclose these memories.
+
 ## Current limitations
 
 - Recognition is active only while the activity is in the foreground.
@@ -122,6 +150,11 @@ name, or match leaves the device, and no vision-language model runs.
 - No language-model or vision-language-model inference is implemented, and there
   is no Android-to-body BLE communication yet. Object detection and face
   embedding are the only app-owned model executions.
+- Person-memory language is intentionally bounded to favorite food, likes, age,
+  and the three documented query forms. Paraphrases, relationships, birthdays,
+  addresses, arbitrary biographies, and fact-level editing are not yet parsed.
+- Structured person-memory speech routing, encrypted persistence, the Memorias
+  screen, and offline spoken answers still require physical-device validation.
 - “¿Qué ves?” is limited to the 80 COCO classes known by YOLO26n. It cannot
   reliably describe activities, relationships, text, or unfamiliar objects.
 - The `person` class can be wrong. The alpha face preparer uses Android's
@@ -184,8 +217,9 @@ name, or match leaves the device, and no vision-language model runs.
 8. **BLE body link (scaffolded):** finish the Android BLE central and Raspberry Pi
    BlueZ peripheral around the versioned GATT command/event protocol, bonding,
    capability negotiation, heartbeats, reconnects, and emergency stop.
-9. **Local memory (face portion delivered):** extend the shipped encrypted face
-   registry with confirmed facts and observation memories.
+9. **Local memory (face and person-fact portions delivered):** extend the shipped
+   encrypted face registry and structured favorite-food/likes/age registry with
+   general confirmed facts and observation memories.
 10. **Local vision expansion:** benchmark richer app-owned scene and face
     alignment models without sending images or SDK telemetry to a cloud service.
 11. **Embodied loop:** connect wake word, local inference, safety policy, physical

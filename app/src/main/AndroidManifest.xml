@@ -38,6 +38,9 @@
         <activity
             android:name=".VisualHistoryActivity"
             android:exported="false" />
+        <activity
+            android:name=".PersonMemoryActivity"
+            android:exported="false" />
     </application>
 
 </manifest>

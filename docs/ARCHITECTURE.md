@@ -3,7 +3,8 @@
 ## Current design
 
 The application is one Android app module with wake-word, scene-perception,
-encrypted face-memory, and model-management areas.
+encrypted face-memory, encrypted structured person-memory, and model-management
+areas.
 
 Wake-word components:
 
@@ -60,6 +61,24 @@ Scene-perception components:
 - `OfflineSpanishSpeaker` selects an installed Spanish `Voice` only when Android
   reports that it does not require a network connection. Lower pitch and speech
   rate provide the current simple robotic effect.
+
+Person-memory components:
+
+- `SpanishPersonMemoryParser` receives only final post-wake speech hypotheses and
+  recognizes a closed grammar for favorite-food updates, like updates, age
+  updates, likes queries, person-summary queries, and favorite-food queries. It
+  bounds names, values, ages, and rejects unsupported statements.
+- `PersonMemoryRecord` is one structured record per accent-insensitive canonical
+  person name. It holds the latest favorite food and age plus a deduplicated list
+  of likes; no raw utterance or conversation transcript is retained.
+- `PersonMemoryCodec` validates a versioned binary registry with limits of one
+  hundred people and twenty likes per person.
+- `PersonMemoryStore` encrypts that registry with AES-GCM under its own Android
+  Keystore key and owns update, lookup, delete-person, and erase-all operations.
+- `SpanishPersonMemoryResponses` composes reactions and answers exclusively from
+  structured fields and returns explicit unknown responses for missing data.
+- `PersonMemoryActivity` is the unlocked owner view for inspecting records and
+  update times, deleting one person, or erasing all person memories.
 
 Model-management components:
 
@@ -121,6 +140,27 @@ flowchart LR
     Vision --> Discard["Reciclar bitmap"]
 ```
 
+The delivered person-memory flow is independent of model inference:
+
+```mermaid
+flowchart LR
+    Wake["“kiko” + ventana de 10 s"] --> Final["Hipótesis final local"]
+    Final --> Parser["SpanishPersonMemoryParser"]
+    Parser --> Kind{"actualizar o consultar"}
+    Kind -- "declaración explícita" --> Store["PersonMemoryStore<br/>AES-GCM"]
+    Store --> Updated["memoria actualizada"]
+    Kind -- "pregunta" --> Lookup["búsqueda por nombre canónico"]
+    Lookup --> Response["SpanishPersonMemoryResponses"]
+    Response --> Screen["pantalla"]
+    Response --> Voice["TTS español sin red"]
+    Store --> Owner["Memorias<br/>ver / borrar persona / borrar todo"]
+```
+
+Partial hypotheses may still activate the wake word and scene command, but they
+never mutate person memory. Only a final complete bounded declaration can update
+the encrypted registry, preventing an incomplete phrase such as “la comida
+favorita de Pedro es la…” from being stored.
+
 The wake word opens a ten-second command window. Starting perception cancels the
 speech recognizer so Kiko cannot hear its own TTS. Leaving the activity cancels
 camera and voice work. Permission denial, missing rear camera, capture failure,
@@ -144,6 +184,8 @@ person, and enrollment does not begin.
   source configuration.
 - Network activity is forbidden for recognition, prompts, inference, analytics,
   and silent catalog fetching.
+- Person-memory parsing, encryption, lookup, response composition, inspection,
+  and deletion perform no network operation and require no new permission.
 - Preferred recognition language: `es-US`, falling back to another installed
   Spanish language tag when the service reports one.
 - Partial results: requested and inspected when the service supplies them.
@@ -265,7 +307,8 @@ flowchart TD
 - `ToolRegistry` exposes only tools implemented and currently available on the
   device.
 - `MemoryStore` separates confirmed durable facts from ephemeral conversation
-  history. It supports inspection, targeted deletion, and erase-all.
+  history. The shipped `PersonMemoryStore` is its first bounded implementation;
+  it supports inspection, person-level deletion, and erase-all.
 - `MemoryCandidateResolver` may select one explicit memory candidate from the
   current command session and requires a Spanish read-back confirmation before
   persistence. It never promotes conversation automatically.
@@ -312,6 +355,8 @@ The initial command set is deliberately narrow and versioned in
 `docs/COMMANDS.md`.
 
 - Native deterministic parsing always owns “para” and “detente”.
+- Native deterministic parsing owns the shipped favorite-food, likes, age, and
+  person-memory query grammar. Only final hypotheses can mutate that memory.
 - Exact step and dance requests take the deterministic path when possible.
 - The action model handles paraphrases and selects knowledge, perception, face,
   and memory tools.
@@ -329,12 +374,27 @@ an action as complete only after the native tool returns an acknowledgement.
 
 ## Memory and privacy
 
-Durable memory is opt-in per command. `remember_fact` stores supplied content;
-`remember_observation` stores only a confirmed textual scene description. A bare
+Durable memory is opt-in per command. In the shipped bounded person grammar, a
+complete direct declaration is itself the explicit storage command and shows
+**memoria actualizada** after the encrypted commit. `remember_fact` will later
+store more general supplied content. `remember_observation` stores only a
+confirmed textual scene description. A bare
 “recuerda esto” may resolve only one unambiguous candidate from the current
 command session and must read it back before saving. Ordinary conversation remains
-ephemeral. The first implementation should prefer structured SQLite records and
-local full-text search over introducing another embedding model.
+ephemeral. `PersonMemoryStore` currently uses a small encrypted versioned binary
+registry because its schema and maximum cardinality are bounded; larger general
+memory should prefer structured SQLite records and local full-text search over
+introducing another embedding model.
+
+Speech hypotheses remain visible ephemerally for on-screen diagnosis but their
+text is not written to Android logs. Registry decryption errors expose no
+plaintext and do not disable the owner's erase-all control.
+
+Person-memory names and facts are AES-GCM encrypted under an Android Keystore key
+separate from face identities. Queries use an accent-insensitive canonical name
+and disclose only explicitly stored fields. A face match never authorizes or
+implicitly triggers person-memory lookup. The unlocked **Memorias** screen makes
+the registry inspectable and provides person-level deletion and erase-all.
 
 Face recognition stores an encrypted identity record and one normalized
 embedding after explicit naming and an on-screen owner confirmation while the
@@ -421,6 +481,9 @@ defaults until the selected hardware is documented and calibrated.
 - Plain JVM unit tests cover person-label gating, bounded Spanish name extraction
   and cancellation, metadata migration, face-registry serialization, embedding
   normalization, conservative matching, and ambiguity rejection.
+- Plain JVM unit tests cover every supported person-memory update/query form,
+  bounds rejection, merging/deduplication, exact Spanish responses, unknown
+  answers, and versioned registry serialization/malformed-data rejection.
 - Standard-library Python unit tests cover strict body-protocol parsing, bounded
   two-servo trajectories, native capability limits, idempotent command IDs,
   deadline rejection, heartbeat watchdog, completion, and emergency stop.
@@ -435,9 +498,10 @@ defaults until the selected hardware is documented and calibrated.
   treated as regression-tested. Rear-camera preview/capture, eye rendering,
   ONNX Runtime object-detection and SFace results/performance, platform face-crop
   quality, visual-history persistence/rendering/deletion, encrypted enrollment,
-  name listening/confirmation, and offline TTS also require physical-device
-  validation; Android BLE, BlueZ, GPIO, and physical-servo integration remain
-  untested.
+  name listening/confirmation, structured person-memory speech routing,
+  encrypted memory persistence/owner UI, and offline TTS also require
+  physical-device validation; Android BLE, BlueZ, GPIO, and physical-servo
+  integration remain untested.
 - Download endpoint probes validate the GGUF magic bytes for all public catalog
   artifacts. Full transfer, cancellation, resumption, and checksum verification
   still require physical-device validation.

@@ -33,6 +33,9 @@ The required command families are:
 | “Recuerda esto: mi color favorito es verde” | `remember_fact` | Confirm and store the supplied fact locally |
 | “Recuerda lo que ves” | `remember_observation` | Confirm and store the latest textual scene observation, not the image |
 | “Recuerda esta cara como Ana” | `enroll_face` | Confirm and locally enroll a face embedding under the supplied name |
+| “La comida favorita de Pedro es la pasta” | `set_person_favorite_food` | Immediately store this complete explicit structured fact |
+| “A Pedro le gusta el fútbol”, “Pedro tiene 10 años” | `update_person_memory` | Add or replace the bounded person field and show “memoria actualizada” |
+| “¿Qué le gusta a Pedro?”, “¿qué sabes de Pedro?”, “¿cuál es la comida favorita de Pedro?” | `query_person_memory` | Answer only from Pedro's encrypted structured record |
 
 Supporting safety and memory commands are also required:
 
@@ -48,7 +51,8 @@ Supporting safety and memory commands are also required:
 Commands use two lanes:
 
 1. A deterministic Spanish grammar handles emergency stop, clearly formed step
-   counts, dance, and explicit memory deletion. A `SpanishNumberParser` converts
+   counts, dance, the shipped bounded person-memory updates/queries, and explicit
+   memory deletion. A `SpanishNumberParser` converts
    forms such as `3`, `tres`, and common speech-recognition variants into an
    integer.
 2. The local `ActionRouter` handles paraphrases, clarification, knowledge,
@@ -141,6 +145,19 @@ produce mistakes.
 
 ### Durable memory
 
+The delivered person-memory subset treats these complete declarations as the
+explicit storage command: favorite food, one general like, or numeric age. It
+does not require a second spoken confirmation because the bounded subject,
+predicate, and value are all present in the final hypothesis. Kiko stores only
+after the encrypted commit succeeds and then shows **memoria actualizada**. A
+partial speech hypothesis never mutates memory.
+
+The shipped queries retrieve only the requested canonical-name record. “¿Qué le
+gusta a Pedro?” combines favorite food and deduplicated likes; “¿qué sabes de
+Pedro?” combines every populated field; “¿cuál es la comida favorita de Pedro?”
+returns only that field. Missing people or fields produce an explicit unknown
+answer. Face recognition cannot trigger these queries or disclose the record.
+
 `remember_fact` stores content explicitly provided by the user. A
 `MemoryCandidateResolver` may also propose the immediately preceding user
 statement or tool result from the current command session. Kiko reads back the
@@ -154,20 +171,22 @@ underlying `describe_scene` capture may already exist separately in visual
 troubleshooting history. Memory resolution never searches arbitrary past
 conversation and never silently chooses between multiple candidates.
 
-The first implementation should use structured records and local full-text search
-before adding a separate embedding model:
+The first shipped memory record is deliberately structured:
 
 ```text
-MemoryItem {
-  id,
-  kind: FACT | OBSERVATION,
-  text,
-  normalizedText,
-  createdAt,
-  sourceCommandId,
-  confirmed
+PersonMemoryRecord {
+  canonicalName,
+  displayName,
+  favoriteFood?,
+  likes[0..20],
+  age?,
+  updatedAt
 }
 ```
+
+It is limited to 100 people and encrypted as a versioned AES-GCM registry under
+Android Keystore. General future `MemoryItem` storage should use structured local
+full-text search before adding another embedding model.
 
 Conversation history is short-lived session state and is not automatically
 promoted to durable memory. Facts, textual observations, names, face embeddings,

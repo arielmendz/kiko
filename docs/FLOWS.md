@@ -288,6 +288,44 @@ sequenceDiagram
 Face matches are friendly labels, never authentication. They cannot authorize
 motion, reveal private memories, or enter owner settings.
 
+## Memoria estructurada sobre personas
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Persona
+    participant Session as MainActivity
+    participant Parser as SpanishPersonMemoryParser
+    participant Memory as PersonMemoryStore cifrado
+    participant Reply as SpanishPersonMemoryResponses
+    participant Owner as Memorias
+
+    Persona->>Session: “Kiko”
+    Persona->>Session: “La comida favorita de Pedro es la pasta”
+    Session->>Parser: hipótesis final
+    Parser-->>Session: SET_FAVORITE_FOOD(Pedro, la pasta)
+    Session->>Memory: commit AES-GCM
+    Memory-->>Reply: registro actualizado
+    Reply-->>Persona: “¡A mí también me gusta la pasta!”
+    Reply-->>Persona: pantalla “memoria actualizada”
+
+    Persona->>Session: “Kiko”
+    Persona->>Session: “¿Qué sabes de Pedro?”
+    Session->>Parser: hipótesis final
+    Parser-->>Session: QUERY_SUMMARY(Pedro)
+    Session->>Memory: buscar nombre canónico
+    Memory-->>Reply: comida + gustos + edad guardados
+    Reply-->>Persona: respuesta solo con esos datos
+
+    Owner->>Memory: ver / borrar Pedro / borrar todo
+    Memory-->>Owner: estado local actualizado
+```
+
+The complete bounded declaration is explicit authorization to store that one
+fact. Partial hypotheses, unsupported predicates, malformed names, out-of-range
+ages, and overlong values never mutate memory. Person memory and face identity
+remain separate encrypted registries.
+
 ## “Recuerda esto”
 
 ```mermaid
@@ -329,10 +367,11 @@ sequenceDiagram
     Memory-->>Persona: “Lo olvidé”
 ```
 
-Ordinary conversation is ephemeral. Only confirmed `MemoryItem` records enter
-durable memory, and a remembered scene stores text rather than another copy of
-its camera frame. The separate visual troubleshooting history still retains the
-original `describe_scene` capture until the user deletes it.
+Ordinary conversation is ephemeral. Only explicit bounded `PersonMemoryRecord`
+updates or separately confirmed future `MemoryItem` records enter durable memory,
+and a remembered scene stores text rather than another copy of its camera frame.
+The separate visual troubleshooting history still retains the original
+`describe_scene` capture until the user deletes it.
 
 ## Failure containment
 
