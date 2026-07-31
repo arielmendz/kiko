@@ -34,9 +34,10 @@ The current milestones are:
    clear match to an explicitly enrolled encrypted identity, or asks an unknown
    person for a name and enrolls only after unlocked on-screen confirmation; face
    output is never authentication; and
-5. after “kiko”, bounded explicit person facts for favorite food, likes, and age
-   are stored in an encrypted, inspectable, locally erasable registry; bounded
-   person-memory questions return only those stored facts; and
+5. after “kiko”, bounded explicit person facts for favorite food, likes, and age,
+   plus bounded cat/dog records for species, owner, favorite food, likes, and age,
+   are stored in separate encrypted, inspectable, locally erasable registries;
+   bounded memory questions return only those stored facts; and
 6. no language-model or vision-language-model inference runs yet; local object
    detection and face-embedding inference do.
 
@@ -104,6 +105,9 @@ architecture.
   “memoria actualizada” state. Unsupported or ambiguous statements must not be
   persisted. Retrieval must return only stored structured facts and admit when a
   requested fact is unknown.
+- Pet memory follows the same rule but requires an explicit `gato`, `gata`,
+  `perro`, or `perra` marker in pet-specific fact and name queries so a pet is not
+  confused with a person sharing its name. Other animal species are unsupported.
 - A confirmed name on an “¿qué ves?” photo is explicit face enrollment. It
   requires an unlocked on-screen confirmation, stores only a bounded encrypted
   embedding/name/source link in the face registry, and may be reused only for

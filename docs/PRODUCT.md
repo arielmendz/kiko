@@ -4,8 +4,9 @@
 
 Kiko is the mind of a physical companion toy: an Android application that runs
 local AI models, observes phone sensors, remembers user-provided facts and
-enrolled faces, and connects over Bluetooth Low Energy (BLE) to a Raspberry Pi
-body controlling two servos. The servos act as crude, non-articulated legs that
+enrolled faces—including structured facts about people, cats, and dogs—and
+connects over Bluetooth Low Energy (BLE) to a Raspberry Pi body controlling two
+servos. The servos act as crude, non-articulated legs that
 move the toy with a seal-like motion. The completed product interacts in Spanish
 and must not depend on cloud inference for its core intelligence.
 
@@ -110,7 +111,7 @@ is absent or unverified, the capture is retained and Kiko asks the user to
 download SFace instead of guessing or opening enrollment. No image, embedding,
 name, or match leaves the device, and no vision-language model runs.
 
-## Delivered milestone: structured person memory
+## Delivered milestone: structured person and pet memory
 
 After “kiko”, Kiko recognizes three complete, explicit fact forms without a
 language model:
@@ -138,6 +139,23 @@ person's facts and update time, deletes one complete person record, or erases th
 whole registry. Uninstall also removes it. Person facts and facial identities are
 separate stores: a face match cannot retrieve or disclose these memories.
 
+Pet memory is a second closed grammar and encrypted registry. Kiko accepts only
+cats and dogs, expressed as `gato`, `gata`, `perro`, or `perra`. “Luna es la gata
+de Pedro”, “Pedro tiene un perro que se llama Toby”, and “mi perra se llama Nala”
+register a named pet. Species-qualified declarations set favorite food, add a
+like, or replace an age from 1 to 40, for example “la gata Luna tiene 3 años”;
+such a declaration can also create an ownerless pet record directly.
+The species marker is required so a pet is never selected merely because its name
+matches a person.
+
+“¿Qué sabes de la gata Luna?”, “¿qué le gusta a la gata Luna?”, “¿cuál es la
+comida favorita de la gata Luna?” and “¿qué mascotas tiene Pedro?” retrieve only
+matching pet records. Pet names and owners are limited to three words, fact values
+to five words, each pet to twenty likes, and the registry to one hundred pets.
+`PetMemoryStore` uses a separate Android Keystore key from person and face data.
+The unlocked **Memorias** screen combines person and pet records for inspection,
+targeted deletion, and erase-all while the encrypted registries remain separate.
+
 ## Current limitations
 
 - Recognition is active only while the activity is in the foreground.
@@ -153,8 +171,13 @@ separate stores: a face match cannot retrieve or disclose these memories.
 - Person-memory language is intentionally bounded to favorite food, likes, age,
   and the three documented query forms. Paraphrases, relationships, birthdays,
   addresses, arbitrary biographies, and fact-level editing are not yet parsed.
+- Pet-memory language is limited to named cats and dogs, explicit owners,
+  favorite food, likes, ages 1–40, and the documented queries. Other species,
+  breeds, medical details, and unqualified names are never resolved as pet
+  records.
 - Structured person-memory speech routing, encrypted persistence, the Memorias
-  screen, and offline spoken answers still require physical-device validation.
+  screen, pet-memory routing, and offline spoken answers still require
+  physical-device validation.
 - “¿Qué ves?” is limited to the 80 COCO classes known by YOLO26n. It cannot
   reliably describe activities, relationships, text, or unfamiliar objects.
 - The `person` class can be wrong. The alpha face preparer uses Android's
@@ -217,8 +240,8 @@ separate stores: a face match cannot retrieve or disclose these memories.
 8. **BLE body link (scaffolded):** finish the Android BLE central and Raspberry Pi
    BlueZ peripheral around the versioned GATT command/event protocol, bonding,
    capability negotiation, heartbeats, reconnects, and emergency stop.
-9. **Local memory (face and person-fact portions delivered):** extend the shipped
-   encrypted face registry and structured favorite-food/likes/age registry with
+9. **Local memory (face, person, and cat/dog portions delivered):** extend the
+   shipped encrypted face registry and structured person/pet registries with
    general confirmed facts and observation memories.
 10. **Local vision expansion:** benchmark richer app-owned scene and face
     alignment models without sending images or SDK telemetry to a cloud service.

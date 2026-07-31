@@ -326,6 +326,47 @@ fact. Partial hypotheses, unsupported predicates, malformed names, out-of-range
 ages, and overlong values never mutate memory. Person memory and face identity
 remain separate encrypted registries.
 
+## Memoria estructurada sobre gatos y perros
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Persona
+    participant Session as MainActivity
+    participant Parser as SpanishPetMemoryParser
+    participant Memory as PetMemoryStore cifrado
+    participant Reply as SpanishPetMemoryResponses
+    participant Owner as Memorias
+
+    Persona->>Session: “Kiko”
+    Persona->>Session: “Luna es la gata de Pedro”
+    Session->>Parser: hipótesis final
+    Parser-->>Session: REGISTER(Luna, GATA, Pedro)
+    Session->>Memory: commit AES-GCM con clave separada
+    Memory-->>Reply: registro actualizado
+    Reply-->>Persona: “Recordaré que Luna es la gata de Pedro”
+    Reply-->>Persona: pantalla “memoria actualizada”
+
+    Persona->>Session: “Kiko”
+    Persona->>Session: “¿Qué sabes de la gata Luna?”
+    Session->>Parser: QUERY_SUMMARY(Luna, GATA)
+    Session->>Memory: buscar nombre + especie
+    Memory-->>Reply: dueño + comida + gustos + edad
+    Reply-->>Persona: respuesta solo con esos datos
+
+    Persona->>Session: “¿Qué mascotas tiene Pedro?”
+    Session->>Memory: buscar dueño canónico
+    Memory-->>Reply: gatos/perros vinculados explícitamente
+
+    Owner->>Memory: ver / borrar Luna / borrar todo
+    Memory-->>Owner: estado local actualizado
+```
+
+Only `gato`, `gata`, `perro`, and `perra` are accepted. Individual pet facts and
+queries require the species marker so an unqualified name cannot collide with a
+person. The unlocked **Memorias** screen combines both record types but person,
+pet, and face data retain separate keys and registries.
+
 ## “Recuerda esto”
 
 ```mermaid
@@ -368,8 +409,9 @@ sequenceDiagram
 ```
 
 Ordinary conversation is ephemeral. Only explicit bounded `PersonMemoryRecord`
-updates or separately confirmed future `MemoryItem` records enter durable memory,
-and a remembered scene stores text rather than another copy of its camera frame.
+or `PetMemoryRecord` updates, or separately confirmed future `MemoryItem` records,
+enter durable memory, and a remembered scene stores text rather than another copy
+of its camera frame.
 The separate visual troubleshooting history still retains the original
 `describe_scene` capture until the user deletes it.
 

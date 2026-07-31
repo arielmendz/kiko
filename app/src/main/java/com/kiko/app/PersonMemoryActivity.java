@@ -17,12 +17,14 @@ import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
 public final class PersonMemoryActivity extends Activity {
     private PersonMemoryStore memoryStore;
+    private PetMemoryStore petMemoryStore;
     private MemoryAdapter adapter;
     private Button deleteAllButton;
 
@@ -30,6 +32,7 @@ public final class PersonMemoryActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         memoryStore = new PersonMemoryStore(this);
+        petMemoryStore = new PetMemoryStore(this);
         adapter = new MemoryAdapter();
         setContentView(createContentView());
     }
@@ -109,27 +112,45 @@ public final class PersonMemoryActivity extends Activity {
     }
 
     private void reload() {
-        List<PersonMemoryRecord> records = memoryStore.list();
-        adapter.setRecords(records);
+        List<MemoryEntry> entries = new ArrayList<>();
+        for (PersonMemoryRecord person : memoryStore.list()) {
+            entries.add(MemoryEntry.forPerson(person));
+        }
+        for (PetMemoryRecord pet : petMemoryStore.list()) {
+            entries.add(MemoryEntry.forPet(pet));
+        }
+        entries.sort((left, right) -> left.displayName.compareToIgnoreCase(
+                right.displayName
+        ));
+        adapter.setEntries(entries);
         deleteAllButton.setEnabled(
-                !records.isEmpty() || memoryStore.hasStoredData()
+                !entries.isEmpty()
+                        || memoryStore.hasStoredData()
+                        || petMemoryStore.hasStoredData()
         );
     }
 
-    private void confirmDelete(PersonMemoryRecord record) {
+    private void confirmDelete(MemoryEntry entry) {
         if (!isDeviceUnlocked()) {
             showUnlockRequired();
             return;
         }
         new AlertDialog.Builder(this)
                 .setTitle(getString(
-                        R.string.delete_person_memory_title,
-                        record.getDisplayName()
+                        entry.pet
+                                ? R.string.delete_pet_memory_title
+                                : R.string.delete_person_memory_title,
+                        entry.displayName
                 ))
-                .setMessage(R.string.delete_person_memory_message)
+                .setMessage(entry.pet
+                        ? R.string.delete_pet_memory_message
+                        : R.string.delete_person_memory_message)
                 .setNegativeButton(R.string.action_cancel, null)
                 .setPositiveButton(R.string.action_delete, (dialog, which) -> {
-                    if (!memoryStore.delete(record.getCanonicalName())) {
+                    boolean deleted = entry.pet
+                            ? petMemoryStore.delete(entry.canonicalName)
+                            : memoryStore.delete(entry.canonicalName);
+                    if (!deleted) {
                         showDeleteError();
                     }
                     reload();
@@ -147,7 +168,9 @@ public final class PersonMemoryActivity extends Activity {
                 .setMessage(R.string.delete_all_person_memories_message)
                 .setNegativeButton(R.string.action_cancel, null)
                 .setPositiveButton(R.string.action_delete_all, (dialog, which) -> {
-                    if (!memoryStore.deleteAll()) {
+                    boolean peopleDeleted = memoryStore.deleteAll();
+                    boolean petsDeleted = petMemoryStore.deleteAll();
+                    if (!peopleDeleted || !petsDeleted) {
                         showDeleteError();
                     }
                     reload();
@@ -190,26 +213,26 @@ public final class PersonMemoryActivity extends Activity {
     }
 
     private final class MemoryAdapter extends BaseAdapter {
-        private List<PersonMemoryRecord> records = Collections.emptyList();
+        private List<MemoryEntry> entries = Collections.emptyList();
 
-        void setRecords(List<PersonMemoryRecord> records) {
-            this.records = records;
+        void setEntries(List<MemoryEntry> entries) {
+            this.entries = entries;
             notifyDataSetChanged();
         }
 
         @Override
         public int getCount() {
-            return records.size();
+            return entries.size();
         }
 
         @Override
-        public PersonMemoryRecord getItem(int position) {
-            return records.get(position);
+        public MemoryEntry getItem(int position) {
+            return entries.get(position);
         }
 
         @Override
         public long getItemId(int position) {
-            return getItem(position).getUpdatedAtEpochMillis();
+            return getItem(position).updatedAtEpochMillis;
         }
 
         @Override
@@ -222,12 +245,10 @@ public final class PersonMemoryActivity extends Activity {
             } else {
                 row = (MemoryRow) recycled.getTag();
             }
-            PersonMemoryRecord record = getItem(position);
-            row.name.setText(record.getDisplayName());
-            row.facts.setText(
-                    SpanishPersonMemoryResponses.inspectableSummary(record)
-            );
-            Date updated = new Date(record.getUpdatedAtEpochMillis());
+            MemoryEntry entry = getItem(position);
+            row.name.setText(entry.displayName);
+            row.facts.setText(entry.summary);
+            Date updated = new Date(entry.updatedAtEpochMillis);
             row.updated.setText(getString(
                     R.string.person_memory_updated_at,
                     DateFormat.getMediumDateFormat(PersonMemoryActivity.this)
@@ -235,8 +256,50 @@ public final class PersonMemoryActivity extends Activity {
                     DateFormat.getTimeFormat(PersonMemoryActivity.this)
                             .format(updated)
             ));
-            row.delete.setOnClickListener(view -> confirmDelete(record));
+            row.delete.setOnClickListener(view -> confirmDelete(entry));
             return recycled;
+        }
+    }
+
+    private static final class MemoryEntry {
+        private final String canonicalName;
+        private final String displayName;
+        private final String summary;
+        private final long updatedAtEpochMillis;
+        private final boolean pet;
+
+        private MemoryEntry(
+                String canonicalName,
+                String displayName,
+                String summary,
+                long updatedAtEpochMillis,
+                boolean pet
+        ) {
+            this.canonicalName = canonicalName;
+            this.displayName = displayName;
+            this.summary = summary;
+            this.updatedAtEpochMillis = updatedAtEpochMillis;
+            this.pet = pet;
+        }
+
+        static MemoryEntry forPerson(PersonMemoryRecord record) {
+            return new MemoryEntry(
+                    record.getCanonicalName(),
+                    record.getDisplayName(),
+                    SpanishPersonMemoryResponses.inspectableSummary(record),
+                    record.getUpdatedAtEpochMillis(),
+                    false
+            );
+        }
+
+        static MemoryEntry forPet(PetMemoryRecord record) {
+            return new MemoryEntry(
+                    record.getCanonicalName(),
+                    record.getDisplayName(),
+                    SpanishPetMemoryResponses.inspectableSummary(record),
+                    record.getUpdatedAtEpochMillis(),
+                    true
+            );
         }
     }
 

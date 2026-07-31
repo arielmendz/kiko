@@ -3,8 +3,9 @@
 ## Current design
 
 The application is one Android app module with wake-word, scene-perception,
-encrypted face-memory, encrypted structured person-memory, and model-management
-areas.
+encrypted face-memory, encrypted structured person/pet memory, and
+model-management areas. Pet memory is stored independently from person and face
+data.
 
 Wake-word components:
 
@@ -78,7 +79,23 @@ Person-memory components:
 - `SpanishPersonMemoryResponses` composes reactions and answers exclusively from
   structured fields and returns explicit unknown responses for missing data.
 - `PersonMemoryActivity` is the unlocked owner view for inspecting records and
-  update times, deleting one person, or erasing all person memories.
+  update times, deleting one person or pet, or erasing both structured registries.
+
+Pet-memory components:
+
+- `SpanishPetMemoryParser` receives only final post-wake hypotheses and recognizes
+  a closed grammar for named cats and dogs, optional owners, favorite food,
+  likes, age, pet queries, and owner-to-pets queries. Pet fact/query forms require
+  an explicit species marker.
+- `PetMemoryRecord` stores a canonical pet name, one of four cat/dog grammatical
+  kinds, optional owner, favorite food, deduplicated likes, age, and update time.
+- `PetMemoryCodec` validates a versioned registry bounded to one hundred pets and
+  twenty likes per pet.
+- `PetMemoryStore` encrypts that registry with AES-GCM under a distinct Android
+  Keystore key and owns updates, pet/owner lookup, targeted deletion, and
+  erase-all.
+- `SpanishPetMemoryResponses` composes every answer solely from structured fields
+  and explicitly reports missing pet data.
 
 Model-management components:
 
@@ -140,26 +157,27 @@ flowchart LR
     Vision --> Discard["Reciclar bitmap"]
 ```
 
-The delivered person-memory flow is independent of model inference:
+The delivered structured person/pet-memory flow is independent of model inference:
 
 ```mermaid
 flowchart LR
     Wake["“kiko” + ventana de 10 s"] --> Final["Hipótesis final local"]
-    Final --> Parser["SpanishPersonMemoryParser"]
+    Final --> Parser["Parser determinista<br/>persona o gato/perro"]
     Parser --> Kind{"actualizar o consultar"}
-    Kind -- "declaración explícita" --> Store["PersonMemoryStore<br/>AES-GCM"]
+    Kind -- "declaración explícita" --> Store["PersonMemoryStore o PetMemoryStore<br/>AES-GCM + claves separadas"]
     Store --> Updated["memoria actualizada"]
-    Kind -- "pregunta" --> Lookup["búsqueda por nombre canónico"]
-    Lookup --> Response["SpanishPersonMemoryResponses"]
+    Kind -- "pregunta" --> Lookup["búsqueda por nombre o dueño canónico"]
+    Lookup --> Response["SpanishPerson/PetMemoryResponses"]
     Response --> Screen["pantalla"]
     Response --> Voice["TTS español sin red"]
-    Store --> Owner["Memorias<br/>ver / borrar persona / borrar todo"]
+    Store --> Owner["Memorias<br/>ver / borrar registro / borrar todo"]
 ```
 
 Partial hypotheses may still activate the wake word and scene command, but they
-never mutate person memory. Only a final complete bounded declaration can update
-the encrypted registry, preventing an incomplete phrase such as “la comida
-favorita de Pedro es la…” from being stored.
+never mutate person or pet memory. Only a final complete bounded declaration can
+update an encrypted registry, preventing an incomplete phrase such as “la comida
+favorita de Pedro es la…” from being stored. Pet parsing runs first because its
+species-qualified subjects would otherwise resemble multiword person names.
 
 The wake word opens a ten-second command window. Starting perception cancels the
 speech recognizer so Kiko cannot hear its own TTS. Leaving the activity cancels
@@ -184,8 +202,9 @@ person, and enrollment does not begin.
   source configuration.
 - Network activity is forbidden for recognition, prompts, inference, analytics,
   and silent catalog fetching.
-- Person-memory parsing, encryption, lookup, response composition, inspection,
-  and deletion perform no network operation and require no new permission.
+- Person/pet-memory parsing, encryption, lookup, response composition,
+  inspection, and deletion perform no network operation and require no new
+  permission.
 - Preferred recognition language: `es-US`, falling back to another installed
   Spanish language tag when the service reports one.
 - Partial results: requested and inspected when the service supplies them.
@@ -307,8 +326,9 @@ flowchart TD
 - `ToolRegistry` exposes only tools implemented and currently available on the
   device.
 - `MemoryStore` separates confirmed durable facts from ephemeral conversation
-  history. The shipped `PersonMemoryStore` is its first bounded implementation;
-  it supports inspection, person-level deletion, and erase-all.
+  history. The shipped `PersonMemoryStore` and `PetMemoryStore` are its first
+  bounded implementations; they support inspection, record-level deletion, and
+  erase-all.
 - `MemoryCandidateResolver` may select one explicit memory candidate from the
   current command session and requires a Spanish read-back confirmation before
   persistence. It never promotes conversation automatically.
@@ -355,8 +375,9 @@ The initial command set is deliberately narrow and versioned in
 `docs/COMMANDS.md`.
 
 - Native deterministic parsing always owns “para” and “detente”.
-- Native deterministic parsing owns the shipped favorite-food, likes, age, and
-  person-memory query grammar. Only final hypotheses can mutate that memory.
+- Native deterministic parsing owns the shipped person and cat/dog favorite-food,
+  likes, age, registration, and query grammars. Only final hypotheses can mutate
+  that memory.
 - Exact step and dance requests take the deterministic path when possible.
 - The action model handles paraphrases and selects knowledge, perception, face,
   and memory tools.
@@ -381,10 +402,10 @@ store more general supplied content. `remember_observation` stores only a
 confirmed textual scene description. A bare
 “recuerda esto” may resolve only one unambiguous candidate from the current
 command session and must read it back before saving. Ordinary conversation remains
-ephemeral. `PersonMemoryStore` currently uses a small encrypted versioned binary
-registry because its schema and maximum cardinality are bounded; larger general
-memory should prefer structured SQLite records and local full-text search over
-introducing another embedding model.
+ephemeral. `PersonMemoryStore` and `PetMemoryStore` currently use small encrypted
+versioned binary registries because their schemas and maximum cardinalities are
+bounded; larger general memory should prefer structured SQLite records and local
+full-text search over introducing another embedding model.
 
 Speech hypotheses remain visible ephemerally for on-screen diagnosis but their
 text is not written to Android logs. Registry decryption errors expose no
@@ -395,6 +416,12 @@ separate from face identities. Queries use an accent-insensitive canonical name
 and disclose only explicitly stored fields. A face match never authorizes or
 implicitly triggers person-memory lookup. The unlocked **Memorias** screen makes
 the registry inspectable and provides person-level deletion and erase-all.
+
+Pet names, cat/dog kind, optional owner, and facts are encrypted under another
+Android Keystore key. Pet queries require a species-qualified subject, except the
+explicit owner query, to avoid silently resolving an ambiguous person/pet name.
+The same unlocked **Memorias** screen exposes pet-level deletion and clears both
+structured registries when the owner chooses erase-all.
 
 Face recognition stores an encrypted identity record and one normalized
 embedding after explicit naming and an on-screen owner confirmation while the
@@ -484,6 +511,9 @@ defaults until the selected hardware is documented and calibrated.
 - Plain JVM unit tests cover every supported person-memory update/query form,
   bounds rejection, merging/deduplication, exact Spanish responses, unknown
   answers, and versioned registry serialization/malformed-data rejection.
+- Plain JVM unit tests cover cat/dog registration forms, species-qualified facts,
+  owner and pet queries, unsupported species/age rejection, exact Spanish
+  responses, and pet-registry serialization/malformed-data rejection.
 - Standard-library Python unit tests cover strict body-protocol parsing, bounded
   two-servo trajectories, native capability limits, idempotent command IDs,
   deadline rejection, heartbeat watchdog, completion, and emergency stop.
@@ -498,7 +528,7 @@ defaults until the selected hardware is documented and calibrated.
   treated as regression-tested. Rear-camera preview/capture, eye rendering,
   ONNX Runtime object-detection and SFace results/performance, platform face-crop
   quality, visual-history persistence/rendering/deletion, encrypted enrollment,
-  name listening/confirmation, structured person-memory speech routing,
+  name listening/confirmation, structured person/pet-memory speech routing,
   encrypted memory persistence/owner UI, and offline TTS also require
   physical-device validation; Android BLE, BlueZ, GPIO, and physical-servo
   integration remain untested.

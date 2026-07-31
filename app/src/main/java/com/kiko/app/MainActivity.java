@@ -59,6 +59,7 @@ public final class MainActivity extends ComponentActivity implements Recognition
     private LocalVisionEngine localVisionEngine;
     private FaceIdentityStore faceIdentityStore;
     private PersonMemoryStore personMemoryStore;
+    private PetMemoryStore petMemoryStore;
     private OfflineSpanishSpeaker offlineSpanishSpeaker;
     private String recognitionLanguage = SpeechLanguageSelector.PREFERRED_SPANISH;
     private boolean activityStarted;
@@ -84,6 +85,7 @@ public final class MainActivity extends ComponentActivity implements Recognition
         localVisionEngine = new LocalVisionEngine(this);
         faceIdentityStore = new FaceIdentityStore(this);
         personMemoryStore = new PersonMemoryStore(this);
+        petMemoryStore = new PetMemoryStore(this);
         offlineSpanishSpeaker = new OfflineSpanishSpeaker(this);
         recognizerIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
                 .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
@@ -445,6 +447,12 @@ public final class MainActivity extends ComponentActivity implements Recognition
                 && !sceneRequestInProgress
                 && !personMemoryRequestInProgress
                 && (wakeWordDetected || containsWakeWord)) {
+            PetMemoryCommand petMemoryCommand =
+                    SpanishPetMemoryParser.parse(hypotheses);
+            if (petMemoryCommand != null) {
+                beginPetMemoryRequest(petMemoryCommand);
+                return;
+            }
             PersonMemoryCommand memoryCommand =
                     SpanishPersonMemoryParser.parse(hypotheses);
             if (memoryCommand != null) {
@@ -453,15 +461,45 @@ public final class MainActivity extends ComponentActivity implements Recognition
         }
     }
 
-    private void beginPersonMemoryRequest(PersonMemoryCommand command) {
-        personMemoryRequestInProgress = true;
-        handler.removeCallbacks(restartListening);
-        handler.removeCallbacks(expireCommandWindow);
-        listening = false;
-        eyesView.setMode(KikoEyeMotion.Mode.RESTING);
-        if (speechRecognizer != null) {
-            speechRecognizer.cancel();
+    private void beginPetMemoryRequest(PetMemoryCommand command) {
+        beginMemoryRequest();
+
+        String response;
+        int detailResource;
+        if (command.isUpdate()) {
+            PetMemoryRecord updated = petMemoryStore.apply(command);
+            if (updated == null) {
+                response = getString(R.string.person_memory_update_failed_response);
+                detailResource = R.string.detail_person_memory_update_failed;
+            } else {
+                response = SpanishPetMemoryResponses.updateResponse(command);
+                detailResource = R.string.detail_person_memory_updated;
+            }
+        } else if (command.getType()
+                == PetMemoryCommand.Type.QUERY_OWNER_PETS) {
+            response = SpanishPetMemoryResponses.queryResponse(
+                    command,
+                    null,
+                    petMemoryStore.findByOwner(command.getOwnerName())
+            );
+            detailResource = R.string.detail_person_memory_consulted;
+        } else {
+            PetMemoryRecord record = petMemoryStore.find(
+                    command.getPetName(),
+                    command.getKind()
+            );
+            response = SpanishPetMemoryResponses.queryResponse(
+                    command,
+                    record,
+                    null
+            );
+            detailResource = R.string.detail_person_memory_consulted;
         }
+        respondToPersonMemoryRequest(response, detailResource);
+    }
+
+    private void beginPersonMemoryRequest(PersonMemoryCommand command) {
+        beginMemoryRequest();
 
         String response;
         int detailResource;
@@ -485,6 +523,17 @@ public final class MainActivity extends ComponentActivity implements Recognition
             detailResource = R.string.detail_person_memory_consulted;
         }
         respondToPersonMemoryRequest(response, detailResource);
+    }
+
+    private void beginMemoryRequest() {
+        personMemoryRequestInProgress = true;
+        handler.removeCallbacks(restartListening);
+        handler.removeCallbacks(expireCommandWindow);
+        listening = false;
+        eyesView.setMode(KikoEyeMotion.Mode.RESTING);
+        if (speechRecognizer != null) {
+            speechRecognizer.cancel();
+        }
     }
 
     private void respondToPersonMemoryRequest(

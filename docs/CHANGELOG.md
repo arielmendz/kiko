@@ -66,3 +66,6 @@
   forget one person, or erase all person memories locally.
 - Reduce the native googly-eye dimensions by approximately ten percent while
   preserving their positions and animations.
+- Add encrypted structured memory for named cats and dogs, including owner,
+  species, favorite food, likes, age, spoken queries, and unified inspect/delete
+  controls in **Memorias**.

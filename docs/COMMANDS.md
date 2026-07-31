@@ -36,6 +36,9 @@ The required command families are:
 | “La comida favorita de Pedro es la pasta” | `set_person_favorite_food` | Immediately store this complete explicit structured fact |
 | “A Pedro le gusta el fútbol”, “Pedro tiene 10 años” | `update_person_memory` | Add or replace the bounded person field and show “memoria actualizada” |
 | “¿Qué le gusta a Pedro?”, “¿qué sabes de Pedro?”, “¿cuál es la comida favorita de Pedro?” | `query_person_memory` | Answer only from Pedro's encrypted structured record |
+| “Luna es la gata de Pedro”, “Pedro tiene un perro que se llama Toby” | `register_pet` | Store a named cat or dog and optional owner in a separate encrypted registry |
+| “La gata Luna tiene 3 años”, “a la gata Luna le gusta dormir” | `update_pet_memory` | Add or replace one species-qualified pet field and show “memoria actualizada” |
+| “¿Qué sabes de la gata Luna?”, “¿qué mascotas tiene Pedro?” | `query_pet_memory` | Answer only from matching encrypted cat/dog records |
 
 Supporting safety and memory commands are also required:
 
@@ -51,8 +54,8 @@ Supporting safety and memory commands are also required:
 Commands use two lanes:
 
 1. A deterministic Spanish grammar handles emergency stop, clearly formed step
-   counts, dance, the shipped bounded person-memory updates/queries, and explicit
-   memory deletion. A `SpanishNumberParser` converts
+   counts, dance, the shipped bounded person/pet-memory updates/queries, and
+   explicit memory deletion. A `SpanishNumberParser` converts
    forms such as `3`, `tres`, and common speech-recognition variants into an
    integer.
 2. The local `ActionRouter` handles paraphrases, clarification, knowledge,
@@ -158,6 +161,17 @@ Pedro?” combines every populated field; “¿cuál es la comida favorita de Pe
 returns only that field. Missing people or fields produce an explicit unknown
 answer. Face recognition cannot trigger these queries or disclose the record.
 
+The delivered pet-memory subset accepts only `gato`, `gata`, `perro`, and
+`perra`. Registration supports “Luna es la gata de Pedro”, “Pedro tiene un perro
+que se llama Toby”, “mi perra se llama Nala”, and the equivalent ownerless
+“Luna es una gata”. Favorite-food, like, age, and individual-pet queries must
+include a matching species-qualified subject such as “la gata Luna”; this avoids
+resolving a pet solely from a name that may also belong to a person. A structured
+pet fact can create an ownerless record without a separate registration. Ages are
+limited to 1–40. “¿Qué mascotas tiene Pedro?” retrieves all pets explicitly
+linked to that owner. Unsupported species and unqualified pet facts are not
+stored as pet records.
+
 `remember_fact` stores content explicitly provided by the user. A
 `MemoryCandidateResolver` may also propose the immediately preceding user
 statement or tool result from the current command session. Kiko reads back the
@@ -171,7 +185,7 @@ underlying `describe_scene` capture may already exist separately in visual
 troubleshooting history. Memory resolution never searches arbitrary past
 conversation and never silently chooses between multiple candidates.
 
-The first shipped memory record is deliberately structured:
+The first shipped memory records are deliberately structured:
 
 ```text
 PersonMemoryRecord {
@@ -182,11 +196,24 @@ PersonMemoryRecord {
   age?,
   updatedAt
 }
+
+PetMemoryRecord {
+  canonicalName,
+  displayName,
+  kind: GATO | GATA | PERRO | PERRA,
+  canonicalOwnerName?,
+  displayOwnerName?,
+  favoriteFood?,
+  likes[0..20],
+  age?,
+  updatedAt
+}
 ```
 
-It is limited to 100 people and encrypted as a versioned AES-GCM registry under
-Android Keystore. General future `MemoryItem` storage should use structured local
-full-text search before adding another embedding model.
+The person registry is limited to 100 people and the pet registry to 100 pets;
+each is versioned and AES-GCM encrypted under its own Android Keystore key.
+General future `MemoryItem` storage should use structured local full-text search
+before adding another embedding model.
 
 Conversation history is short-lived session state and is not automatically
 promoted to durable memory. Facts, textual observations, names, face embeddings,

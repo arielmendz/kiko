@@ -14,8 +14,9 @@ viewport appears, Kiko captures one frame, runs a downloaded YOLO26n object
 detector locally, optionally compares one visible face with explicitly enrolled
 SFace embeddings, and speaks a short Spanish observation with a deliberately
 simple offline voice. Kiko also remembers explicitly stated favorite foods,
-likes, and ages for named people in an encrypted local registry and answers
-bounded questions about them. It provides a download-only library of local GGUF
+likes, and ages for named people, plus equivalent facts, species, and owners for
+named cats and dogs, in encrypted local registries and answers bounded questions
+about them. It provides a download-only library of local GGUF
 language models; language-model inference is not implemented yet.
 
 ## Current scope
@@ -56,7 +57,12 @@ language models; language-model inference is not implemented yet.
   unstated facts.
 - Answers “¿qué le gusta a Pedro?”, “¿qué sabes de Pedro?”, and “¿cuál es la
   comida favorita de Pedro?” from that encrypted registry. The unlocked
-  **Memorias** screen lists each person and supports delete-one and erase-all.
+  **Memorias** screen lists each person and pet and supports delete-one and
+  erase-all.
+- Registers cats and dogs with explicit phrases such as “Luna es la gata de
+  Pedro”, then accepts species-qualified favorite-food, like, and age facts. It
+  answers questions about that pet and “¿qué mascotas tiene Pedro?” without
+  treating unsupported animals or an unqualified name as a pet.
 - Speaks the displayed result with an installed Spanish TTS voice only when that
   voice declares that it does not require a network connection.
 - Offers pinned Gemma 3 1B, Bonsai 1.7B, Qwen3 0.6B, and LFM2.5 350M GGUF
@@ -100,10 +106,13 @@ unknown usable face, answer with a name (or say “cancelar”) and confirm
 name. Photo labels created by older builds remain visible as legacy labels but
 are not silently converted into biometric enrollments.
 
-For person memory, say “Kiko”, then a supported explicit fact. Kiko speaks a
+For person or pet memory, say “Kiko”, then a supported explicit fact. Kiko speaks a
 short reaction and shows **memoria actualizada**. On a later day, say “Kiko” and
 ask “¿qué le gusta a Pedro?”, “¿qué sabes de Pedro?”, or “¿cuál es la comida
-favorita de Pedro?”. Open **Memorias** to inspect or erase the structured facts.
+favorita de Pedro?”. For a pet, first say “Luna es la gata de Pedro”; then use
+phrases such as “la gata Luna tiene 3 años”, “¿qué sabes de la gata Luna?” or
+“¿qué mascotas tiene Pedro?”. Open **Memorias** to inspect or erase the
+structured person and pet facts.
 
 If a Spanish model needs to be downloaded, leave the phone online until the system
 speech service completes it, then close and reopen Kiko. Audio recognition remains
@@ -116,8 +125,9 @@ labels, or inference data anywhere. Visual-history JPEGs and labels remain in
 Kiko's private internal storage until the user deletes them or uninstalls the app.
 Face names and 128-value embeddings are additionally AES-GCM encrypted with a key
 held by Android Keystore.
-Person-memory names, favorite foods, likes, and ages use a separate AES-GCM
-registry protected by Android Keystore.
+Person-memory names, favorite foods, likes, and ages use an AES-GCM registry
+protected by Android Keystore. Pet names, cat/dog kind, owners, favorite foods,
+likes, and ages use a second key and encrypted registry.
 Gemma requires accepting Google's Gemma terms on Hugging Face and entering a
 read-only Hugging Face token. The token is encrypted with Android Keystore.
 
@@ -174,7 +184,10 @@ PYTHONPATH=body/raspberry-pi/src \
   model.
 - `app/src/main/java/com/kiko/app/PersonMemoryStore.java` encrypts structured
   person facts with Android Keystore; `PersonMemoryActivity.java` provides the
-  inspect, delete-one, and erase-all owner controls.
+  shared person/pet inspect, delete-one, and erase-all owner controls.
+- `app/src/main/java/com/kiko/app/SpanishPetMemoryParser.java` recognizes the
+  bounded cat/dog declarations and queries; `PetMemoryStore.java` encrypts those
+  structured records under a separate Android Keystore key.
 - `app/src/main/java/com/kiko/app/VisualHistoryStore.java` atomically stores,
   lists, and deletes private capture/label records.
 - `app/src/main/java/com/kiko/app/VisualHistoryActivity.java` displays every saved
