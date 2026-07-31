@@ -50,8 +50,9 @@ public final class LocalVisionEngine implements AutoCloseable {
     public interface Callback {
         void onDescription(
                 String description,
-                boolean personDetected,
-                String historyRecordId
+                boolean shouldAskPersonName,
+                String historyRecordId,
+                float[] enrollmentEmbedding
         );
 
         void onModelMissing(boolean historySaved);
@@ -63,18 +64,38 @@ public final class LocalVisionEngine implements AutoCloseable {
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final ModelDownloadStore downloads;
     private final VisualHistoryStore visualHistory;
+    private final LocalFaceRecognizer faceRecognizer;
     private final String modelMissingDescription;
-    private final String personQuestion;
+    private final String unknownPersonQuestion;
+    private final String faceModelMissingDescription;
+    private final String faceUnavailableDescription;
+    private final String faceErrorDescription;
+    private final String knownPersonDescription;
     private final String visionErrorDescription;
     private volatile boolean closed;
 
     public LocalVisionEngine(Context context) {
         downloads = new ModelDownloadStore(context);
         visualHistory = new VisualHistoryStore(context);
+        faceRecognizer = new LocalFaceRecognizer(context);
         modelMissingDescription = context.getString(
                 R.string.scene_vision_model_missing_response
         );
-        personQuestion = context.getString(R.string.scene_person_question);
+        unknownPersonQuestion = context.getString(
+                R.string.scene_unknown_person_question
+        );
+        faceModelMissingDescription = context.getString(
+                R.string.scene_face_model_missing_response
+        );
+        faceUnavailableDescription = context.getString(
+                R.string.scene_face_unavailable_response
+        );
+        faceErrorDescription = context.getString(
+                R.string.scene_face_error_response
+        );
+        knownPersonDescription = context.getString(
+                R.string.scene_known_person_response
+        );
         visionErrorDescription = context.getString(
                 R.string.scene_vision_error_response
         );
@@ -194,20 +215,53 @@ public final class LocalVisionEngine implements AutoCloseable {
 
             boolean personDetected =
                     SpanishSceneDescription.containsPerson(labels);
-            String description = personDetected
-                    ? personQuestion
-                    : SpanishSceneDescription.describe(labels);
+            boolean shouldAskPersonName = false;
+            float[] enrollmentEmbedding = null;
+            String description;
+            if (personDetected) {
+                LocalFaceRecognizer.Result faceResult =
+                        faceRecognizer.recognize(oriented);
+                switch (faceResult.getStatus()) {
+                    case MATCHED:
+                        description = String.format(
+                                java.util.Locale.getDefault(),
+                                knownPersonDescription,
+                                faceResult.getName()
+                        );
+                        break;
+                    case UNKNOWN:
+                        description = unknownPersonQuestion;
+                        shouldAskPersonName = true;
+                        enrollmentEmbedding =
+                                faceResult.getEnrollmentEmbedding();
+                        break;
+                    case MODEL_MISSING:
+                        description = faceModelMissingDescription;
+                        break;
+                    case FACE_UNAVAILABLE:
+                        description = faceUnavailableDescription;
+                        break;
+                    default:
+                        description = faceErrorDescription;
+                        break;
+                }
+            } else {
+                description = SpanishSceneDescription.describe(labels);
+            }
             VisualHistoryRecord historyRecord = saveHistory(
                     oriented,
                     capturedAtEpochMillis,
                     description
             );
+            boolean finalShouldAskPersonName = shouldAskPersonName;
+            float[] finalEnrollmentEmbedding = enrollmentEmbedding;
             mainHandler.post(() -> {
                 if (!closed) {
                     callback.onDescription(
                             description,
-                            personDetected,
-                            historyRecord == null ? null : historyRecord.getId()
+                            finalShouldAskPersonName,
+                            historyRecord == null ? null : historyRecord.getId(),
+                            finalEnrollmentEmbedding
                     );
                 }
             });

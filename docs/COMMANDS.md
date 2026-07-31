@@ -93,21 +93,25 @@ current `LocalVisionEngine`, and releases the camera. Kiko's eyes squint from
 command acceptance through completion. Every completed capture and its exact
 Spanish response are retained in Kiko's private visual troubleshooting history
 until the user deletes that record, erases all history, or uninstalls the app.
-The response describes only the supported visible properties in Spanish and does
-not infer a person's identity.
+The response describes only the supported visible properties in Spanish. Person
+identity comes only from the separate local enrolled-face matcher.
 
 The delivered first iteration recognizes “¿qué ves?” deterministically in the
 same utterance as “Kiko” or during a ten-second post-wake window. It uses the rear
-camera and the pinned YOLO26n model to report up to three COCO object
-types. If any accepted detection has the `person` class, Kiko instead says “Veo
-una persona, ¿quién es?” and opens a bounded local name-listening window. A name
-is saved on that one history photo only after an unlocked on-screen **Guardar**
-confirmation. Saying “cancelar” or declining leaves the photo unnamed.
+camera and the pinned YOLO26n model to report up to three COCO object types. If
+any accepted detection has the `person` class, Kiko runs the pinned SFace
+embedding model on one locally prepared face. A clear enrolled match says “Veo a
+<nombre>.” An unknown usable face says “Veo una persona, no la conozco, ¿quién
+es?” and opens a bounded local name-listening window. An unlocked on-screen
+**Guardar** confirmation encrypts the supplied name and embedding and links the
+enrollment to that history photo. Saying “cancelar” or declining leaves the photo
+unnamed and stores no identity.
 
-The `person` class is not a face detection or identity result. The confirmed name
-does not create an embedding, enroll a reusable identity, authenticate anyone, or
-cause Kiko to name the person in a future photo. Free-form scene and activity
-captions remain future work.
+The `person` class is only the gate for the dedicated face path and is not itself
+an identity result. Missing SFace, no usable face, multiple faces, a score below
+`0.50`, or less than `0.08` separation from a differently named runner-up never
+returns the nearest name. Free-form scene and activity captions remain future
+work.
 
 The answer is always displayed. It is spoken only through an installed Spanish
 TTS voice that Android marks as not requiring a network connection. The current
@@ -115,16 +119,20 @@ low-pitch, reduced-rate profile is intentionally simple and robotic.
 
 ### Face identity
 
-`recognize_faces` uses a dedicated local face detector and embedding matcher. It
-does not ask the language or vision-language model to guess identity and never
+The delivered “¿qué ves?” person branch uses a local face preparer and SFace
+embedding matcher. The separate `recognize_faces` spoken intent remains future
+work. Neither path asks a language or vision-language model to guess identity or
 uses an external face-search service.
 
 Enrollment is explicit: the user supplies a name, Kiko confirms it, checks that
 one usable face is present, and requires an on-screen owner confirmation while
-the phone is unlocked before storing an encrypted embedding. Source photos are
-discarded by default. Recognition below the configured confidence threshold
-returns “No sé quién es” rather than the nearest name. Names and embeddings can
-be listed and deleted locally; deletion and erase-all use the same owner control.
+the phone is unlocked before storing an encrypted embedding. The already-retained
+“¿qué ves?” history photo is the inspectable source for this first enrollment
+path; other future face flows discard source photos by default. Recognition below
+the configured threshold or ambiguity margin returns unknown rather than the
+nearest name. Names and embeddings can be inspected through their source records
+and deleted locally; targeted deletion and erase-all use the same unlocked owner
+control.
 
 Face matching is a friendly toy memory, not biometric authentication or proof of
 identity. Its result never authorizes movement, reveals private memory, or unlocks

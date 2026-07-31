@@ -29,11 +29,13 @@ The current milestones are:
    runs a downloaded, SHA-verified YOLO26n ONNX artifact locally through ONNX
    Runtime, then reports bounded COCO object detections through Spanish screen
    text and an offline-only voice, and saves the image plus result in an
-   inspectable, locally erasable troubleshooting history; a `person` detection
-   may receive one user-spoken photo tag only after unlocked on-screen
-   confirmation, without face recognition or authentication; and
-5. no language-model or vision-language-model inference runs yet; local
-   object-detection inference does.
+   inspectable, locally erasable troubleshooting history; after a `person`
+   detection it runs a downloaded, SHA-verified SFace model locally, names only a
+   clear match to an explicitly enrolled encrypted identity, or asks an unknown
+   person for a name and enrolls only after unlocked on-screen confirmation; face
+   output is never authentication; and
+5. no language-model or vision-language-model inference runs yet; local object
+   detection and face-embedding inference do.
 
 Do not silently weaken the local-first or BLE-body goals. Temporary platform
 dependencies must be identified as such in `README.md`, `docs/PRODUCT.md`, and
@@ -93,10 +95,11 @@ architecture.
   in private, inspectable, locally erasable troubleshooting history; other camera
   flows must not retain frames by default. Never use a language model to guess
   identity.
-- A confirmed name on an “¿qué ves?” photo is an annotation on that history
-  record, not face enrollment. It requires an unlocked on-screen confirmation and
-  must never be reused to identify, authenticate, or authorize the person in
-  another frame.
+- A confirmed name on an “¿qué ves?” photo is explicit face enrollment. It
+  requires an unlocked on-screen confirmation, stores only a bounded encrypted
+  embedding/name/source link in the face registry, and may be reused only for
+  local toy identification. Legacy name-only photo tags must not be silently
+  converted into biometric enrollment.
 - Face matches are toy responses, never authentication. Enrollment, identity
   deletion, and erase-all require an unlocked on-screen owner control; face output
   must not authorize actions or disclose private memory.

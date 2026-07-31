@@ -11,7 +11,8 @@ Kiko currently listens with Android's on-device speech recognizer and displays
 open, blink, and look side to side while the recognizer listens. For the first
 perception use case, “Kiko, ¿qué ves?”, the eyes squint, a live rear-camera
 viewport appears, Kiko captures one frame, runs a downloaded YOLO26n object
-detector locally, and speaks a short Spanish observation with a deliberately
+detector locally, optionally compares one visible face with explicitly enrolled
+SFace embeddings, and speaks a short Spanish observation with a deliberately
 simple offline voice. It also provides a download-only library of local GGUF
 language models; language-model inference is not implemented yet.
 
@@ -38,14 +39,19 @@ language models; language-model inference is not implemented yet.
 - Saves every completed “¿qué ves?” capture with Kiko's Spanish result in a
   private, on-device **Historial visual**, including the “nothing recognized” or
   analysis-error result. Captures can be deleted individually or all at once.
-- When YOLO emits the `person` class, asks “Veo una persona, ¿quién es?”, listens
-  locally for a short name, and requires an unlocked on-screen confirmation
-  before attaching that name to the saved photo. The tag is not face recognition
-  and is never used as identity evidence.
+- When YOLO emits the `person` class, prepares one face locally and compares its
+  SFace embedding with encrypted, explicitly confirmed identities. A clear match
+  answers “Veo a <nombre>”; an unknown face asks “Veo una persona, no la conozco,
+  ¿quién es?” and listens locally for a short name. Saving requires an unlocked
+  on-screen confirmation.
+- Stores confirmed face embeddings with AES-GCM under an Android Keystore key.
+  Historial visual lets the unlocked user forget one identity while retaining its
+  photo and removes linked identities when a photo or the complete history is
+  deleted. Face matches are toy labels, never authentication.
 - Speaks the displayed result with an installed Spanish TTS voice only when that
   voice declares that it does not require a network connection.
 - Offers pinned Gemma 3 1B, Bonsai 1.7B, Qwen3 0.6B, and LFM2.5 350M GGUF
-  downloads plus the runnable YOLO26n vision artifact, with progress,
+  downloads plus the runnable YOLO26n and SFace vision artifacts, with progress,
   cancellation, deletion, and SHA-256 verification.
 - Stores model files in Kiko's app-specific external directory so uninstalling the
   app removes them without requesting broad storage access.
@@ -57,8 +63,9 @@ supplied by Android. These are temporary platform dependencies: future
 local-model milestones will replace them with app-owned wake-word and voice
 components. Vision inference is app-owned and local, using the MIT-licensed ONNX
 Runtime directly rather than a cloud or analytics SDK. YOLO26n is an AGPL-3.0
-bounded COCO object detector, not a vision-language model or detailed scene
-captioner. Kiko is consequently licensed under AGPL-3.0-only. The body scaffold
+bounded COCO object detector; SFace is an Apache-2.0 face-embedding model. Neither
+is a vision-language model or detailed scene captioner. Kiko is consequently
+licensed under AGPL-3.0-only. The body scaffold
 does not yet advertise through BlueZ, drive GPIO, or connect from Android, so the
 Android app does not request Bluetooth permissions yet.
 
@@ -71,15 +78,18 @@ Requirements:
 - A physical Android 12+ device with an on-device recognition service.
 
 Open the repository in Android Studio, let Gradle sync, and run the `app`
-configuration. Open **Modelos locales** and explicitly download
-**YOLO26n** before trying perception. Grant microphone access, then say
+configuration. Open **Modelos locales** and explicitly download **YOLO26n** and
+**SFace** before trying person recognition. Grant microphone access, then say
 “Kiko, ¿qué ves?” (or say “Kiko” and then “¿qué ves?” within ten seconds), grant
 camera access, and point the phone's rear camera toward the scene. Kiko shows the
 live viewport before taking the still and displays the response even if the
 device has no installed offline Spanish TTS voice. Open **Historial visual** on
-the wake-word screen to inspect the exact saved image and label, delete one
-capture, or erase the complete history. If Kiko detects a person, answer with a
-name (or say “cancelar”) and confirm **Guardar** on screen to label that photo.
+the wake-word screen to inspect the exact saved image and label, forget one
+identity, delete one capture, or erase the complete history. If Kiko finds an
+unknown usable face, answer with a name (or say “cancelar”) and confirm
+**Guardar** on screen to enroll it. On a later clear match, Kiko answers with that
+name. Photo labels created by older builds remain visible as legacy labels but
+are not silently converted into biometric enrollments.
 
 If a Spanish model needs to be downloaded, leave the phone online until the system
 speech service completes it, then close and reopen Kiko. Audio recognition remains
@@ -90,10 +100,12 @@ model downloads. Kiko requests network access solely for user-initiated
 model-file downloads; it does not send prompts, microphone audio, camera images,
 labels, or inference data anywhere. Visual-history JPEGs and labels remain in
 Kiko's private internal storage until the user deletes them or uninstalls the app.
+Face names and 128-value embeddings are additionally AES-GCM encrypted with a key
+held by Android Keystore.
 Gemma requires accepting Google's Gemma terms on Hugging Face and entering a
 read-only Hugging Face token. The token is encrypted with Android Keystore.
 
-The five catalog files require 2,130,544,293 bytes in total. Downloads continue
+The six catalog files require 2,169,240,646 bytes in total. Downloads continue
 through Android's system download manager if the model screen closes. Details and
 pinned sources are in `docs/MODELS.md`.
 
@@ -132,8 +144,15 @@ PYTHONPATH=body/raspberry-pi/src \
 - `app/src/main/java/com/kiko/app/SceneCameraCapture.java` owns the rear-camera
   live preview, delayed one-shot capture, and camera release.
 - `app/src/main/java/com/kiko/app/LocalVisionEngine.java` produces the current
-  YOLO26n object detections through direct local ONNX Runtime inference and hands
-  the oriented capture and result to the private visual-history store.
+  YOLO26n object detections through direct local ONNX Runtime inference, delegates
+  person faces to `LocalFaceRecognizer`, and hands the oriented capture and result
+  to the private visual-history store.
+- `app/src/main/java/com/kiko/app/LocalFaceRecognizer.java` uses Android's local
+  face geometry to prepare one crop, runs the verified SFace ONNX embedding model,
+  and accepts only thresholded, unambiguous matches.
+- `app/src/main/java/com/kiko/app/FaceIdentityStore.java` encrypts explicitly
+  confirmed names and embeddings with Android Keystore and supports targeted or
+  complete deletion.
 - `app/src/main/java/com/kiko/app/VisualHistoryStore.java` atomically stores,
   lists, and deletes private capture/label records.
 - `app/src/main/java/com/kiko/app/VisualHistoryActivity.java` displays every saved
@@ -144,7 +163,7 @@ PYTHONPATH=body/raspberry-pi/src \
 - `app/src/main/java/com/kiko/app/SpanishSceneDescription.java` composes the
   structured observation in Spanish.
 - `app/src/main/java/com/kiko/app/SpanishPersonNameExtractor.java` bounds and
-  normalizes local speech hypotheses for the optional confirmed photo tag.
+  normalizes local speech hypotheses for explicit face enrollment.
 - `app/src/main/java/com/kiko/app/OfflineSpanishSpeaker.java` selects only an
   installed non-network Spanish voice and applies the simple robotic profile.
 - `app/src/main/java/com/kiko/app/ModelLibraryActivity.java` renders the model

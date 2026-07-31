@@ -30,6 +30,7 @@ import androidx.activity.ComponentActivity;
 import androidx.camera.view.PreviewView;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 
 public final class MainActivity extends ComponentActivity implements RecognitionListener {
     private static final String TAG = "KikoSpeech";
@@ -56,7 +57,7 @@ public final class MainActivity extends ComponentActivity implements Recognition
     private Intent recognizerIntent;
     private SceneCameraCapture sceneCameraCapture;
     private LocalVisionEngine localVisionEngine;
-    private VisualHistoryStore visualHistoryStore;
+    private FaceIdentityStore faceIdentityStore;
     private OfflineSpanishSpeaker offlineSpanishSpeaker;
     private String recognitionLanguage = SpeechLanguageSelector.PREFERRED_SPANISH;
     private boolean activityStarted;
@@ -69,6 +70,7 @@ public final class MainActivity extends ComponentActivity implements Recognition
     private boolean awaitingPersonName;
     private int personNameAttempts;
     private String pendingPersonHistoryId;
+    private float[] pendingPersonEmbedding;
     private AlertDialog personNameDialog;
 
     @Override
@@ -78,7 +80,7 @@ public final class MainActivity extends ComponentActivity implements Recognition
 
         sceneCameraCapture = new SceneCameraCapture(this);
         localVisionEngine = new LocalVisionEngine(this);
-        visualHistoryStore = new VisualHistoryStore(this);
+        faceIdentityStore = new FaceIdentityStore(this);
         offlineSpanishSpeaker = new OfflineSpanishSpeaker(this);
         recognizerIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
                 .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
@@ -107,6 +109,7 @@ public final class MainActivity extends ComponentActivity implements Recognition
         sceneRequestInProgress = false;
         awaitingPersonName = false;
         pendingPersonHistoryId = null;
+        pendingPersonEmbedding = null;
         cameraPermissionPending = false;
         supportCheckInProgress = false;
         if (personNameDialog != null) {
@@ -506,17 +509,21 @@ public final class MainActivity extends ComponentActivity implements Recognition
                             @Override
                             public void onDescription(
                                     String description,
-                                    boolean personDetected,
-                                    String historyRecordId
+                                    boolean shouldAskPersonName,
+                                    String historyRecordId,
+                                    float[] enrollmentEmbedding
                             ) {
                                 if (activityStarted && sceneRequestInProgress) {
                                     boolean historySaved =
                                             historyRecordId != null;
                                     showHistorySaveWarningIfNeeded(historySaved);
-                                    if (personDetected && historySaved) {
+                                    if (shouldAskPersonName
+                                            && historySaved
+                                            && enrollmentEmbedding != null) {
                                         askForPersonName(
                                                 description,
-                                                historyRecordId
+                                                historyRecordId,
+                                                enrollmentEmbedding
                                         );
                                     } else {
                                         respondToSceneRequest(
@@ -577,8 +584,16 @@ public final class MainActivity extends ComponentActivity implements Recognition
         });
     }
 
-    private void askForPersonName(String question, String historyRecordId) {
+    private void askForPersonName(
+            String question,
+            String historyRecordId,
+            float[] enrollmentEmbedding
+    ) {
         pendingPersonHistoryId = historyRecordId;
+        pendingPersonEmbedding = Arrays.copyOf(
+                enrollmentEmbedding,
+                enrollmentEmbedding.length
+        );
         showStatus(question, true);
         showDetail(R.string.detail_person_name_listening);
         offlineSpanishSpeaker.speak(
@@ -601,9 +616,11 @@ public final class MainActivity extends ComponentActivity implements Recognition
         if (!activityStarted
                 || !sceneRequestInProgress
                 || pendingPersonHistoryId == null
+                || pendingPersonEmbedding == null
                 || speechRecognizer == null) {
             awaitingPersonName = false;
             pendingPersonHistoryId = null;
+            pendingPersonEmbedding = null;
             return;
         }
         awaitingPersonName = true;
@@ -713,20 +730,24 @@ public final class MainActivity extends ComponentActivity implements Recognition
     private void saveConfirmedPersonName(String personName) {
         personNameDialog = null;
         String historyRecordId = pendingPersonHistoryId;
+        float[] enrollmentEmbedding = pendingPersonEmbedding;
         pendingPersonHistoryId = null;
-        boolean saved = historyRecordId != null
-                && visualHistoryStore.setPersonName(
+        pendingPersonEmbedding = null;
+        boolean enrolled = historyRecordId != null
+                && enrollmentEmbedding != null
+                && faceIdentityStore.enroll(
                         historyRecordId,
-                        personName
+                        personName,
+                        enrollmentEmbedding
                 );
         respondToSceneRequest(
-                saved
+                enrolled
                         ? getString(
                                 R.string.scene_person_name_saved_response,
                                 personName
                         )
                         : getString(R.string.scene_person_name_not_saved_response),
-                saved
+                enrolled
                         ? R.string.detail_person_name_saved
                         : R.string.detail_person_name_save_failed
         );
@@ -737,6 +758,7 @@ public final class MainActivity extends ComponentActivity implements Recognition
         awaitingPersonName = false;
         listening = false;
         pendingPersonHistoryId = null;
+        pendingPersonEmbedding = null;
         handler.removeCallbacks(expirePersonNameWindow);
         handler.removeCallbacks(retryPersonNameListening);
         if (speechRecognizer != null) {
@@ -797,6 +819,7 @@ public final class MainActivity extends ComponentActivity implements Recognition
         sceneRequestInProgress = false;
         awaitingPersonName = false;
         pendingPersonHistoryId = null;
+        pendingPersonEmbedding = null;
         cameraPermissionPending = false;
         wakeWordDetected = false;
         handler.removeCallbacks(expireCommandWindow);

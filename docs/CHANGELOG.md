@@ -52,3 +52,10 @@
 - When YOLO detects `person`, ask who it is, listen locally for a bounded name,
   require unlocked on-screen confirmation, and attach the confirmed name only to
   that erasable visual-history photo without enabling face recognition.
+- Add opt-in local face recognition after a YOLO `person` detection: pin and
+  verify Apache-2.0 SFace, require a conservative unambiguous match, ask unknown
+  faces “Veo una persona, no la conozco, ¿quién es?”, and encrypt confirmed
+  names/embeddings with Android Keystore.
+- Add unlocked **Olvidar persona**, linked photo/identity deletion, and erase-all
+  behavior while preserving older name-only photo tags as non-enrolled legacy
+  metadata.

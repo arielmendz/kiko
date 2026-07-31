@@ -52,7 +52,8 @@ to make device-specific recognition behavior observable.
 
 From **Modelos locales**, the user can:
 
-1. inspect four language artifacts and the YOLO26n vision artifact;
+1. inspect four language artifacts plus the YOLO26n object and SFace embedding
+   artifacts;
 2. see each artifact's model details, quantization, size, and license;
 3. start a model download and leave the screen while Android continues it;
 4. see progress, cancel an active download, retry a failure, or delete a model;
@@ -63,8 +64,8 @@ Gemma is gated by Google on Hugging Face. The user must accept the Gemma license
 externally and provide a Hugging Face read token. Kiko encrypts that token with
 Android Keystore and never logs it.
 
-The language artifacts remain download-only. YOLO26n is loaded only for an
-explicit “¿qué ves?” request.
+The language artifacts remain download-only. YOLO26n and SFace are loaded only
+for an explicit “¿qué ves?” request.
 
 ## Current milestone: first local “¿qué ves?” loop
 
@@ -78,27 +79,36 @@ Kiko:
    still into memory, then closes the camera and hides the viewport;
 4. executes the verified YOLO26n ONNX artifact locally through ONNX Runtime and
    selects up to three detected COCO object types;
-5. displays a short Spanish observation and speaks it through an installed
+5. when YOLO reports a person, uses local face geometry and the verified SFace
+   ONNX artifact to compare one usable face with explicitly enrolled identities;
+6. displays a short Spanish observation and speaks it through an installed
    non-network Spanish TTS voice; and
-6. saves the oriented image and the exact Spanish result in private on-device
+7. saves the oriented image and the exact Spanish result in private on-device
    visual history, including an empty-detection or analysis-error result.
 
-If YOLO emits the `person` class, the result is “Veo una persona, ¿quién es?”.
-Kiko then listens locally for at most two short name attempts within twelve
-seconds. A valid name is attached to that exact history photo only after the
-unlocked user taps **Guardar** in an on-screen confirmation. Saying “cancelar”,
-timing out, rejecting the dialog, or failing validation leaves the photo unnamed.
+If one face clearly matches an enrolled identity, Kiko responds “Veo a
+<nombre>.” If no identity clears the `0.50` cosine threshold and `0.08`
+best-versus-runner-up margin, the result is “Veo una persona, no la conozco,
+¿quién es?”. Kiko then listens locally for at most two short name attempts within
+twelve seconds. Tapping **Guardar** in the unlocked on-screen confirmation stores
+the name, source-photo link, and normalized 128-value embedding in an AES-GCM
+registry protected by Android Keystore. Saying “cancelar”, timing out, rejecting
+the dialog, or failing validation leaves the photo unnamed and stores no identity.
 
 The **Historial visual** screen shows every saved capture newest first. The user
-can inspect any confirmed person tag, delete one capture, or erase all captures.
-Records remain until deletion or app uninstall; there is intentionally no
-automatic retention cap in this troubleshooting milestone.
+can inspect enrolled names, forget one identity while keeping its photo, delete
+one capture and its linked identity, or erase all captures and identities. These
+owner operations require the phone to be unlocked. Records remain until deletion
+or app uninstall; there is intentionally no automatic retention cap in this
+troubleshooting milestone. Names created by an older non-biometric build remain
+visible as legacy labels and are not silently enrolled.
 
 If the vision artifact is absent or unverified, Kiko does not open the camera and
 asks the user in Spanish to download it from **Modelos locales**. This is bounded
-object detection, not a free-form scene caption. A spoken name is a user-confirmed
-annotation on one photo; Kiko does not infer it, extract a face embedding,
-recognize that person in another image, or execute a vision-language model.
+object detection, not a free-form scene caption. If YOLO sees a person but SFace
+is absent or unverified, the capture is retained and Kiko asks the user to
+download SFace instead of guessing or opening enrollment. No image, embedding,
+name, or match leaves the device, and no vision-language model runs.
 
 ## Current limitations
 
@@ -110,15 +120,19 @@ recognize that person in another image, or execute a vision-language model.
 - The current wake-word mechanism is a bootstrap dependency on an Android platform
   service, not the final app-owned local model.
 - No language-model or vision-language-model inference is implemented, and there
-  is no Android-to-body BLE communication yet. Object-detection inference is the
-  only app-owned model execution.
-- “¿Qué ves?” is limited to the 80 COCO classes known by YOLO26n. It
-  cannot reliably describe activities, relationships, text, unfamiliar objects,
-  or identity.
-- The `person` class can be wrong, and a confirmed name labels the whole saved
-  photo rather than a detected face. It is not biometric enrollment,
-  authentication, or cross-photo recognition.
-- YOLO26n must be explicitly downloaded and verified before the command can run.
+  is no Android-to-body BLE communication yet. Object detection and face
+  embedding are the only app-owned model executions.
+- “¿Qué ves?” is limited to the 80 COCO classes known by YOLO26n. It cannot
+  reliably describe activities, relationships, text, or unfamiliar objects.
+- The `person` class can be wrong. The alpha face preparer uses Android's
+  eye-midpoint face geometry rather than SFace's preferred five-landmark
+  alignment, so pose, distance, lighting, occlusion, multiple faces, and similar
+  appearances can cause unknown or incorrect results. Conservative thresholds
+  reduce but cannot eliminate false matches.
+- Face recognition is a toy presentation response, never authentication. It
+  cannot authorize body actions, owner controls, or private-memory disclosure.
+- YOLO26n must be explicitly downloaded and verified before the command can run;
+  SFace must also be downloaded and verified for recognition and enrollment.
 - The YOLO26n weights are AGPL-3.0; Kiko is therefore AGPL-3.0-only. A future
   proprietary or commercial deployment requires an applicable Ultralytics
   Enterprise license and a new project-license review.
@@ -129,8 +143,9 @@ recognize that person in another image, or execute a vision-language model.
   requiring a network connection; otherwise the complete answer remains visible.
 - Rear-camera live preview/capture, eye animation timing, and Spanish TTS still
   require physical-device validation.
-- The post-detection name-listening, unlocked confirmation, and photo-tag update
-  still require physical-device validation.
+- Face crop quality, SFace latency/matching, encrypted enrollment, the
+  post-detection name flow, and identity deletion still require physical-device
+  validation.
 - Visual-history rendering, persistence across process restarts, deletion, and
   storage behavior still require physical-device validation. Because every
   successful capture is retained until explicit deletion, storage usage can grow
@@ -155,7 +170,8 @@ recognize that person in another image, or execute a vision-language model.
 3. **Local scene baseline (delivered):** route “¿qué ves?” deterministically,
    squint the on-screen eyes, preview and capture one rear-camera frame, run
    YOLO26n on-device, report bounded object detections with an offline Spanish
-   voice, and retain an inspectable, locally erasable troubleshooting record.
+   voice, retain an inspectable troubleshooting record, and recognize/enroll one
+   explicitly confirmed face locally with SFace.
 4. **Embodied tool contract:** define typed read-only sensor tools and
    state-changing body tools, plus native validation, confirmation, deadlines,
    and emergency-stop behavior.
@@ -168,11 +184,10 @@ recognize that person in another image, or execute a vision-language model.
 8. **BLE body link (scaffolded):** finish the Android BLE central and Raspberry Pi
    BlueZ peripheral around the versioned GATT command/event protocol, bonding,
    capability negotiation, heartbeats, reconnects, and emergency stop.
-9. **Local memory:** store confirmed facts and explicitly enrolled face embeddings
-   with inspect, forget, and erase-all controls.
-10. **Local vision expansion:** benchmark richer app-owned scene models and
-    recognize only locally enrolled faces without sending images or SDK telemetry
-    to a cloud service.
+9. **Local memory (face portion delivered):** extend the shipped encrypted face
+   registry with confirmed facts and observation memories.
+10. **Local vision expansion:** benchmark richer app-owned scene and face
+    alignment models without sending images or SDK telemetry to a cloud service.
 11. **Embodied loop:** connect wake word, local inference, safety policy, physical
    actions, telemetry, and recovery into an offline-first experience.
 
@@ -186,7 +201,6 @@ default.
 - Cloud speech recognition or cloud AI.
 - Android BLE discovery, bonding, or body control.
 - Raspberry Pi BlueZ advertising, GPIO servo output, or physical movement.
-- Language-model, vision-language-model, face-identity, or activity-captioning
-  inference. The system speech service may download its own Spanish recognition
-  pack, and the model library downloads only artifacts explicitly selected by the
-  user.
+- Language-model, vision-language-model, or activity-captioning inference. The
+  system speech service may download its own Spanish recognition pack, and the
+  model library downloads only artifacts explicitly selected by the user.

@@ -12,8 +12,9 @@ changes.
 | Qwen3 0.6B | `Qwen3-0.6B-Q8_0.gguf` (Q8_0) | 639,446,688 bytes | Apache-2.0 | `Qwen/Qwen3-0.6B-GGUF` |
 | LFM2.5 350M | `LFM2.5-350M-Q4_K_M.gguf` (Q4_K_M) | 229,312,224 bytes | LFM-1.0 | `LiquidAI/LFM2.5-350M-GGUF` |
 | YOLO26n | `yolo26n.onnx` (FP32) | 9,941,957 bytes | AGPL-3.0 | Ultralytics release asset `398736502` |
+| SFace | `face_recognition_sface_2021dec.onnx` (FP32) | 38,696,353 bytes | Apache-2.0 | `opencv/face_recognition_sface` |
 
-Total catalog storage is 2,130,544,293 bytes, excluding temporary transfer
+Total catalog storage is 2,169,240,646 bytes, excluding temporary transfer
 overhead.
 
 ## Integrity pins
@@ -25,6 +26,7 @@ overhead.
 | Qwen3 0.6B | `23749fefcc72300e3a2ad315e1317431b06b590a` | `9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031` |
 | LFM2.5 350M | `bb7ee58b243e4cede04187e323e760b04f8a0091` | `7e6f72643caafc9a68256686638c4d7916f2cec76d1df478d4c3ddcd95a6aed4` |
 | YOLO26n | GitHub release asset `398736502` from release `v8.4.0` | `2e947b787d9e787b93a16772a5f55b1d4d8c4d86f53146149c5d6a642442d6f7` |
+| SFace | `89e1f6f89ab68a12ab974b5b65162abf464a461f` | `0ba9fbfa01b5270c96627c4ef784da859931e02f04419c829e83484087c34e79` |
 
 ## Access and licenses
 
@@ -41,6 +43,9 @@ overhead.
   GitHub release-asset API endpoint with the required octet-stream header rather
   than a mutable filename-only URL. A proprietary or commercial deployment
   requires an applicable Ultralytics Enterprise license and a new review.
+- **SFace:** Apache-2.0, as declared by OpenCV's official model repository and
+  bundled license. The catalog URL resolves an immutable repository commit rather
+  than mutable `main`.
 
 The user is responsible for reviewing applicable terms before downloading or
 using a model.
@@ -67,6 +72,20 @@ validates the tensor names, types, and fixed shapes before inference.
 `Yolo26DetectionParser` treats every output row as untrusted, rejects malformed
 boxes, non-finite or out-of-range confidence values, and invalid classes, then
 maps the contiguous 80-class COCO label order into `SpanishSceneDescription`.
+
+SFace is also runnable through ONNX Runtime Android on CPU. The reviewed artifact
+contract has one runtime `float32` image input named `data`, shaped
+`1 × 3 × 112 × 112`, and one `float32` embedding output named `fc1`, shaped
+`1 × 128`. The graph itself applies `(pixel - 127.5) × 0.0078125`, so Kiko feeds
+raw RGB NCHW channel values. `LocalFaceRecognizer` first asks Android's local
+`FaceDetector` for exactly one face, builds an eye-midpoint square crop, and
+normalizes the resulting embedding. This alpha crop is less robust than SFace's
+preferred five-landmark alignment and remains a physical-device benchmark item.
+`FaceEmbeddingMatcher` accepts a name only at cosine similarity `≥ 0.50` with at
+least `0.08` separation from the best differently named identity. These
+application thresholds are intentionally stricter than OpenCV's published
+same-identity benchmark threshold and treat uncertain nearest neighbors as
+unknown.
 
 The model binary is not committed. The user explicitly starts its download in
 **Modelos locales**; `ModelDownloadStore` checks its exact length and SHA-256

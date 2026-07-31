@@ -170,6 +170,8 @@ sequenceDiagram
     participant Preview as PreviewView
     participant Vision as LocalVisionEngine
     participant Model as YOLO26n ONNX verificado
+    participant Face as FaceDetector + SFace verificado
+    participant Registry as FaceIdentityStore cifrado
     participant Reply as SpanishSceneDescription
     participant History as Historial visual privado
     participant Voice as TTS español sin red
@@ -194,7 +196,15 @@ sequenceDiagram
         Vision->>Model: inferencia ONNX Runtime local
         Model-->>Vision: clases COCO + confianza
         alt YOLO incluye person
-            Vision-->>Reply: “Veo una persona, ¿quién es?”
+            Vision->>Face: preparar una cara + embedding
+            Face->>Registry: comparar localmente
+            alt Coincidencia clara
+                Registry-->>Reply: “Veo a <nombre>”
+            else Cara desconocida usable
+                Registry-->>Reply: “Veo una persona, no la conozco, ¿quién es?”
+            else SFace ausente, cara no usable o error
+                Face-->>Reply: explicación sin adivinar
+            end
         else Sin person
             Vision-->>Reply: hasta 3 tipos de objeto
         end
@@ -204,13 +214,14 @@ sequenceDiagram
             Reply->>Voice: frase española
             Voice-->>Persona: voz robótica simple
         end
-        opt YOLO incluye person y la foto se guardó
+        opt Cara desconocida usable y foto guardada
             Session->>Eyes: modo LISTENING
             Session-->>Persona: escuchar nombre local (máx. 2 intentos / 12 s)
             Persona->>Session: nombre o “cancelar”
             Session-->>Persona: confirmar Guardar/Cancelar en pantalla desbloqueada
             alt Guardar confirmado
-                Session->>History: adjuntar nombre a esa foto
+                Session->>Registry: cifrar nombre + embedding + vínculo
+                Session->>History: adjuntar nombre confirmado
             else Cancelar, timeout o nombre inválido
                 Session->>History: dejar foto sin nombre
             end
@@ -223,13 +234,14 @@ sequenceDiagram
     end
 ```
 
-A normal scene description does not run identity recognition. Its capture is
-retained only in the app-private troubleshooting history, where the user can
-delete one record or erase everything. A confirmed spoken name is only an
-annotation on that record: there is no face crop, embedding, later match, or
-authentication. YOLO26n is a bounded object detector rather than a scene
-captioner; a future richer local model may replace it without changing the
-explicit permission, local-only retention, or no-network boundaries.
+A scene without YOLO's `person` class does not run identity recognition. Every
+capture is retained in app-private troubleshooting history, where the unlocked
+user can forget one identity, delete one record and its linked identity, or erase
+everything. A confirmed unknown face creates an encrypted local enrollment; a
+clear later match is only a toy label and never authentication. YOLO26n remains a
+bounded object detector rather than a scene captioner; a future richer local
+model may replace it without changing the explicit permission, local-only
+retention, or no-network boundaries.
 
 ## “¿A quién ves?” and face enrollment
 

@@ -137,7 +137,14 @@ public final class VisualHistoryStore {
                 || personName.trim().isEmpty()) {
             return false;
         }
-        String normalizedName = personName.trim();
+        return updatePersonName(recordId, personName.trim());
+    }
+
+    public boolean clearPersonName(String recordId) {
+        return isRecordId(recordId) && updatePersonName(recordId, null);
+    }
+
+    private boolean updatePersonName(String recordId, String personName) {
         File imageFile = new File(directory, recordId + IMAGE_SUFFIX);
         File metadataFile = new File(directory, recordId + METADATA_SUFFIX);
         File metadataTemp = new File(
@@ -155,7 +162,7 @@ public final class VisualHistoryStore {
                     VisualHistoryMetadata.encode(
                             metadata.getCapturedAtEpochMillis(),
                             metadata.getDescription(),
-                            normalizedName
+                            personName
                     ),
                     metadataTemp
             );

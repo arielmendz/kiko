@@ -2,6 +2,7 @@ package com.kiko.app;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.KeyguardManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Typeface;
@@ -21,19 +22,25 @@ import android.widget.Toast;
 
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public final class VisualHistoryActivity extends Activity {
     private static final int THUMBNAIL_MAX_DIMENSION = 960;
 
     private VisualHistoryStore historyStore;
+    private FaceIdentityStore faceIdentityStore;
     private HistoryAdapter adapter;
     private Button deleteAllButton;
+    private Map<String, FaceIdentityRecord> identitiesBySource =
+            Collections.emptyMap();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         historyStore = new VisualHistoryStore(this);
+        faceIdentityStore = new FaceIdentityStore(this);
         adapter = new HistoryAdapter();
         setContentView(createContentView());
     }
@@ -113,17 +120,41 @@ public final class VisualHistoryActivity extends Activity {
 
     private void reloadHistory() {
         List<VisualHistoryRecord> records = historyStore.list();
+        Map<String, FaceIdentityRecord> identities = new HashMap<>();
+        for (FaceIdentityRecord identity : faceIdentityStore.list()) {
+            identities.put(identity.getSourceHistoryId(), identity);
+        }
+        identitiesBySource = identities;
         adapter.setRecords(records);
-        deleteAllButton.setEnabled(!records.isEmpty());
+        deleteAllButton.setEnabled(
+                !records.isEmpty() || !identities.isEmpty()
+        );
     }
 
     private void confirmDelete(VisualHistoryRecord record) {
+        if (!isDeviceUnlocked()) {
+            showOwnerUnlockRequired();
+            return;
+        }
+        FaceIdentityRecord identity =
+                identitiesBySource.get(record.getId());
         new AlertDialog.Builder(this)
                 .setTitle(R.string.delete_visual_history_title)
-                .setMessage(record.getDescription())
+                .setMessage(identity != null
+                        ? getString(
+                                R.string.delete_visual_history_identity_message,
+                                identity.getName()
+                        )
+                        : record.getDescription())
                 .setNegativeButton(R.string.action_cancel, null)
                 .setPositiveButton(R.string.action_delete, (dialog, which) -> {
-                    if (!historyStore.delete(record)) {
+                    boolean identityDeleted = identity == null
+                            || faceIdentityStore.forgetBySourceHistoryId(
+                                    record.getId()
+                            );
+                    if (!identityDeleted) {
+                        showIdentityDeleteError();
+                    } else if (!historyStore.delete(record)) {
                         showDeleteError();
                     }
                     reloadHistory();
@@ -132,12 +163,19 @@ public final class VisualHistoryActivity extends Activity {
     }
 
     private void confirmDeleteAll() {
+        if (!isDeviceUnlocked()) {
+            showOwnerUnlockRequired();
+            return;
+        }
         new AlertDialog.Builder(this)
                 .setTitle(R.string.delete_all_visual_history_title)
                 .setMessage(R.string.delete_all_visual_history_message)
                 .setNegativeButton(R.string.action_cancel, null)
                 .setPositiveButton(R.string.action_delete_all, (dialog, which) -> {
-                    if (!historyStore.deleteAll()) {
+                    boolean identitiesDeleted = faceIdentityStore.deleteAll();
+                    if (!identitiesDeleted) {
+                        showIdentityDeleteError();
+                    } else if (!historyStore.deleteAll()) {
                         showDeleteError();
                     }
                     reloadHistory();
@@ -149,6 +187,59 @@ public final class VisualHistoryActivity extends Activity {
         Toast.makeText(
                 this,
                 R.string.visual_history_delete_failed,
+                Toast.LENGTH_LONG
+        ).show();
+    }
+
+    private void confirmForgetPerson(
+            VisualHistoryRecord record,
+            FaceIdentityRecord identity
+    ) {
+        if (!isDeviceUnlocked()) {
+            showOwnerUnlockRequired();
+            return;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(getString(
+                        R.string.forget_person_title,
+                        identity.getName()
+                ))
+                .setMessage(R.string.forget_person_message)
+                .setNegativeButton(R.string.action_cancel, null)
+                .setPositiveButton(R.string.action_forget_person, (dialog, which) -> {
+                    boolean forgotten =
+                            faceIdentityStore.forgetBySourceHistoryId(
+                                    record.getId()
+                            );
+                    if (!forgotten) {
+                        showIdentityDeleteError();
+                    } else if (record.getPersonName() != null
+                            && !historyStore.clearPersonName(record.getId())) {
+                        showDeleteError();
+                    }
+                    reloadHistory();
+                })
+                .show();
+    }
+
+    private boolean isDeviceUnlocked() {
+        KeyguardManager keyguardManager =
+                (KeyguardManager) getSystemService(KEYGUARD_SERVICE);
+        return keyguardManager == null || !keyguardManager.isDeviceLocked();
+    }
+
+    private void showOwnerUnlockRequired() {
+        Toast.makeText(
+                this,
+                R.string.owner_unlock_required,
+                Toast.LENGTH_LONG
+        ).show();
+    }
+
+    private void showIdentityDeleteError() {
+        Toast.makeText(
+                this,
+                R.string.face_identity_delete_failed,
                 Toast.LENGTH_LONG
         ).show();
     }
@@ -233,14 +324,32 @@ public final class VisualHistoryActivity extends Activity {
                             VisualHistoryActivity.this
                     ).format(new Date(record.getCapturedAtEpochMillis())));
             row.description.setText(record.getDescription());
-            if (record.getPersonName() == null) {
+            FaceIdentityRecord identity =
+                    identitiesBySource.get(record.getId());
+            String displayedName = identity != null
+                    ? identity.getName()
+                    : record.getPersonName();
+            if (displayedName == null) {
                 row.personName.setVisibility(View.GONE);
+                row.forgetPerson.setVisibility(View.GONE);
             } else {
                 row.personName.setText(getString(
-                        R.string.visual_history_person_name,
-                        record.getPersonName()
+                        identity != null
+                                ? R.string.visual_history_person_name
+                                : R.string.visual_history_legacy_person_name,
+                        displayedName
                 ));
                 row.personName.setVisibility(View.VISIBLE);
+                row.forgetPerson.setVisibility(
+                        identity != null ? View.VISIBLE : View.GONE
+                );
+                if (identity != null) {
+                    row.forgetPerson.setOnClickListener(
+                            view -> confirmForgetPerson(record, identity)
+                    );
+                } else {
+                    row.forgetPerson.setOnClickListener(null);
+                }
             }
             row.delete.setOnClickListener(view -> confirmDelete(record));
             return recycled;
@@ -281,6 +390,16 @@ public final class VisualHistoryActivity extends Activity {
         personName.setVisibility(View.GONE);
         card.addView(personName);
 
+        Button forgetPerson = new Button(this);
+        forgetPerson.setText(R.string.action_forget_person);
+        forgetPerson.setVisibility(View.GONE);
+        LinearLayout.LayoutParams forgetParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        forgetParams.gravity = Gravity.END;
+        card.addView(forgetPerson, forgetParams);
+
         Button delete = new Button(this);
         delete.setText(R.string.action_delete);
         LinearLayout.LayoutParams deleteParams = new LinearLayout.LayoutParams(
@@ -295,6 +414,7 @@ public final class VisualHistoryActivity extends Activity {
                 timestamp,
                 description,
                 personName,
+                forgetPerson,
                 delete
         );
     }
@@ -305,6 +425,7 @@ public final class VisualHistoryActivity extends Activity {
         private final TextView timestamp;
         private final TextView description;
         private final TextView personName;
+        private final Button forgetPerson;
         private final Button delete;
 
         private HistoryRow(
@@ -313,6 +434,7 @@ public final class VisualHistoryActivity extends Activity {
                 TextView timestamp,
                 TextView description,
                 TextView personName,
+                Button forgetPerson,
                 Button delete
         ) {
             this.root = root;
@@ -320,6 +442,7 @@ public final class VisualHistoryActivity extends Activity {
             this.timestamp = timestamp;
             this.description = description;
             this.personName = personName;
+            this.forgetPerson = forgetPerson;
             this.delete = delete;
         }
     }

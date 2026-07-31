@@ -8,6 +8,7 @@ import java.util.Map;
 
 public final class ModelCatalog {
     public static final String VISION_MODEL_ID = "yolo26n";
+    public static final String FACE_MODEL_ID = "sface";
 
     private static final List<ModelSpec> MODELS = Collections.unmodifiableList(
             Arrays.asList(
@@ -83,6 +84,25 @@ public final class ModelCatalog {
                             "https://github.com/ultralytics/assets/releases/tag/v8.4.0",
                             "https://api.github.com/repos/ultralytics/assets/releases/assets/398736502",
                             githubReleaseHeaders()
+                    ),
+                    ModelSpec.directArtifact(
+                            FACE_MODEL_ID,
+                            "SFace",
+                            "128 dimensiones",
+                            "FP32 ONNX",
+                            "opencv/face_recognition_sface",
+                            "89e1f6f89ab68a12ab974b5b65162abf464a461f",
+                            "face_recognition_sface_2021dec.onnx",
+                            38_696_353L,
+                            "0ba9fbfa01b5270c96627c4ef784da859931e02f04419c829e83484087c34e79",
+                            "Apache-2.0",
+                            "Embeddings faciales locales para reconocer solo personas confirmadas.",
+                            ModelPurpose.FACE_RECOGNITION,
+                            "https://huggingface.co/opencv/face_recognition_sface",
+                            "https://huggingface.co/opencv/face_recognition_sface/resolve/"
+                                    + "89e1f6f89ab68a12ab974b5b65162abf464a461f/"
+                                    + "face_recognition_sface_2021dec.onnx?download=true",
+                            Collections.emptyMap()
                     )
             )
     );

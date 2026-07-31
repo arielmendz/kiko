@@ -2,8 +2,8 @@
 
 ## Current design
 
-The application is one Android app module with wake-word, scene-perception, and
-model-management areas.
+The application is one Android app module with wake-word, scene-perception,
+encrypted face-memory, and model-management areas.
 
 Wake-word components:
 
@@ -29,8 +29,19 @@ Scene-perception components:
   immediately after capture.
 - `LocalVisionEngine` runs the verified YOLO26n ONNX artifact through ONNX Runtime
   1.28.0 on CPU off the UI thread, validates the expected tensor contract,
-  letterboxes and normalizes the frame, emits thresholded COCO labels, saves the
-  oriented capture and result, and then recycles every working bitmap.
+  letterboxes and normalizes the frame, emits thresholded COCO labels, delegates
+  a detected person to local face recognition, saves the oriented capture and
+  final result, and then recycles every working bitmap.
+- `LocalFaceRecognizer` uses Android's platform `FaceDetector` locally to require
+  one usable face and prepare a `112 × 112` RGB crop, then runs the verified SFace
+  ONNX model to produce one normalized 128-value embedding.
+- `FaceEmbeddingMatcher` applies a `0.50` cosine threshold plus a `0.08`
+  best-versus-runner-up margin and groups multiple enrollment samples with the
+  same normalized name. Below-threshold and ambiguous candidates are `unknown`;
+  nearest-neighbor output is never accepted by itself.
+- `FaceIdentityStore` serializes explicitly confirmed name/embedding/source-photo
+  records, encrypts the entire registry with AES-GCM under an Android Keystore
+  key, and supports lookup, per-source deletion, and erase-all.
 - `Yolo26DetectionParser` maps the pinned model's contiguous COCO category indices
   and rejects malformed boxes, confidence values, classes, or tensor widths in
   platform-independent code.
@@ -44,7 +55,8 @@ Scene-perception components:
   deletion, and erase-all. Metadata v2 remains backward-compatible with unnamed
   v1 records.
 - `VisualHistoryActivity` renders those records with the exact response attached
-  to each capture and exposes both deletion controls.
+  to each capture and exposes forget-identity, delete-one, and erase-all controls.
+  Identity mutations require an unlocked on-screen action.
 - `OfflineSpanishSpeaker` selects an installed Spanish `Voice` only when Android
   reports that it does not require a network connection. Lower pitch and speech
   rate provide the current simple robotic effect.
@@ -97,9 +109,13 @@ flowchart LR
     Vision --> Description["SpanishSceneDescription"]
     Vision --> History["VisualHistoryStore<br/>JPEG + respuesta"]
     Description --> Person{"¿clase person?"}
-    Person -- "Sí" --> Name["Escuchar nombre<br/>+ confirmar en pantalla"]
+    Person -- "Sí" --> Face["FaceDetector + SFace<br/>local"]
+    Registry["FaceIdentityStore<br/>AES-GCM"] --> Face
+    Face -- "coincidencia clara" --> Known["“Veo a &lt;nombre&gt;”"]
+    Face -- "desconocida" --> Name["Preguntar nombre<br/>+ confirmar desbloqueado"]
+    Name --> Registry
     Name --> History
-    History --> Gallery["Historial visual<br/>ver / borrar uno / borrar todo"]
+    History --> Gallery["Historial visual<br/>olvidar / borrar uno / borrar todo"]
     Description --> Screen["Pantalla"]
     Description --> Voice["TTS español sin red"]
     Vision --> Discard["Reciclar bitmap"]
@@ -108,10 +124,10 @@ flowchart LR
 The wake word opens a ten-second command window. Starting perception cancels the
 speech recognizer so Kiko cannot hear its own TTS. Leaving the activity cancels
 camera and voice work. Permission denial, missing rear camera, capture failure,
-analysis failure, a missing/unverified vision model, or missing offline voice
-produces a visible Spanish result without a cloud fallback. Model absence never
-selects the old heuristic path, and a known-missing model is rejected before the
-camera opens.
+analysis failure, a missing/unverified model, unusable face, or missing offline
+voice produces a visible Spanish result without a cloud fallback. Missing YOLO is
+rejected before the camera opens; missing SFace is reported only if YOLO finds a
+person, and enrollment does not begin.
 
 ## Platform and security choices
 
@@ -141,16 +157,20 @@ MIT-licensed ONNX Runtime Android API directly on CPU; it does not use ML Kit,
 MediaPipe Tasks, a cloud API, or an SDK telemetry layer. The YOLO26n weights are
 AGPL-3.0, so the repository is licensed AGPL-3.0-only; proprietary or commercial
 deployment requires a new license review and an applicable Ultralytics Enterprise
-license. Platform TTS remains a temporary dependency. Each completed explicit
+license. SFace is Apache-2.0. Platform TTS and Android's legacy local
+eye-midpoint `FaceDetector` are temporary dependencies. Each completed explicit
 “¿qué ves?” capture is written as a JPEG plus bounded metadata under Kiko's
 internal app-private files directory. The image and exact result remain local,
 are removed by per-item deletion, erase-all, or app uninstall, and require no
 broad storage permission. Kiko does not impose an automatic retention cap in the
-current troubleshooting milestone. The `person` class remains an object label,
-not identity or face enrollment. When it is present, Kiko can attach a
-user-supplied name to that single history record after an unlocked on-screen
-confirmation. The record is protected by Android app-private storage and device
-file-based encryption, and is not queried for future identity matching.
+current troubleshooting milestone. The `person` class is only a gate: identity
+comes from SFace matching against the encrypted registry. A user-supplied name
+becomes enrollment only after unlocked on-screen confirmation. The registry
+ciphertext is app-private and AES-GCM encrypted with a non-exportable Android
+Keystore key; raw embeddings are not exposed to speech, TTS, or a language model.
+Deleting an enrollment source photo also forgets its linked identity, while the
+separate **Olvidar persona** action retains the photo. Older name-only metadata is
+shown as a legacy label and never silently upgraded to biometric enrollment.
 
 Android's `SpeechRecognizer` remains an utterance-oriented bootstrap dependency,
 so microphone sessions can visibly cycle during silence. Reliable continuous
@@ -176,7 +196,8 @@ Uninstalling Kiko removes the app-specific model directory.
 
 Catalog URLs use immutable Hugging Face commit revisions or the numeric GitHub
 release-asset ID for YOLO26n. Expected file sizes and SHA-256 hashes are recorded
-in code and `docs/MODELS.md`. The GitHub API download includes an explicit
+in code and `docs/MODELS.md`. SFace uses a pinned OpenCV Hugging Face commit; the
+GitHub API download includes an explicit
 `application/octet-stream` request header. A download is never promoted from
 `.part` to its final `.gguf` or `.onnx` filename unless both checks pass.
 
@@ -248,9 +269,10 @@ flowchart TD
 - `MemoryCandidateResolver` may select one explicit memory candidate from the
   current command session and requires a Spanish read-back confirmation before
   persistence. It never promotes conversation automatically.
-- `FaceRegistry` stores names and encrypted face embeddings from explicit
-  enrollments. It does not retain source photos by default and never exposes raw
-  embeddings to a language model.
+- The shipped `FaceIdentityStore` is the initial `FaceRegistry`: it stores names
+  and encrypted face embeddings from explicit enrollments and never exposes raw
+  embeddings to a language model. Its source link points to the already-retained
+  explicit troubleshooting capture.
 - `PerceptionCoordinator` turns an explicit perception request into a bounded
   sensor sample, still-camera capture, or face-recognition operation.
 - `SensorAdapters` use native Android APIs and summarize timestamped sensor
@@ -261,12 +283,12 @@ flowchart TD
   original-resolution oriented capture rather than the letterboxed inference
   bitmap. A future replacement may produce a richer compact structured Spanish
   observation, but must remain app-owned, local, and free of SDK telemetry.
-  Identity comes from a separate future face detector and embedding matcher, not
-  from the `person` object class or a vision-language model.
-- The current person-name follow-up is deliberately not `FaceRegistry`
-  enrollment: it stores no crop or embedding and never claims a later match. The
-  whole-photo annotation follows the visual-history record's inspect/delete-one/
-  erase-all lifecycle.
+  Identity comes from the separate shipped face preparation and embedding matcher,
+  not from the `person` object class or a vision-language model.
+- The current person-name follow-up is explicit face-registry enrollment. A
+  temporary embedding exists only for the bounded name/confirmation window; a
+  rejection discards it. A confirmation encrypts it and links it to the
+  whole-photo visual-history record for inspection and deletion.
 - `BodyBleTransport` is the future Android BLE-central boundary. It owns discovery,
   bonding, GATT connection state, MTU negotiation, protocol version negotiation,
   heartbeats, reconnects, and event indications.
@@ -297,8 +319,9 @@ The initial command set is deliberately narrow and versioned in
   relevant confirmed memories.
 - The current local object detector receives a still frame only after “¿qué ves?”.
   Any future vision model must preserve that explicit gating.
-- The face matcher receives a still frame only for explicit enrollment or
-  “¿a quién ves?” and returns `unknown` below its configured threshold.
+- The face matcher receives a still frame only after explicit “¿qué ves?” and a
+  YOLO `person` result. It returns `unknown` below its configured threshold or
+  ambiguity margin.
 
 A local response composer converts native results and model text into Spanish
 screen output and, when installed, offline Spanish speech synthesis. Kiko reports
@@ -313,18 +336,17 @@ command session and must read it back before saving. Ordinary conversation remai
 ephemeral. The first implementation should prefer structured SQLite records and
 local full-text search over introducing another embedding model.
 
-Face recognition stores an encrypted identity record and one or more face
-embeddings after explicit naming and an on-screen owner confirmation while the
+Face recognition stores an encrypted identity record and one normalized
+embedding after explicit naming and an on-screen owner confirmation while the
 phone is unlocked. Explicit “¿qué ves?” troubleshooting captures are the narrow
 exception to default camera ephemerality: every completed capture is retained
-locally with its result and stays inspectable and erasable. A detected-person
-photo may receive one spoken name only after an unlocked on-screen confirmation;
-that name labels the photo and is not a face identity record. The photo and tag
-remain app-private under Android file-based encryption and are erased together.
-Future face matching and enrollment source photos remain discarded by default.
-Facts, future face names/embeddings, and later indexes remain local, use keys
-protected by Android Keystore, and are removed through targeted forget commands,
-erase-all, or app uninstall.
+locally with its result and stays inspectable and erasable. A confirmed
+detected-person photo is the visible enrollment source. The JPEG remains
+app-private under Android file-based encryption; the name and embedding receive
+additional application-level AES-GCM encryption under Android Keystore. Targeted
+forget deletes the identity but can retain the photo; photo deletion deletes its
+linked identity; erase-all and app uninstall remove both. Facts and later indexes
+must follow the same local, inspectable, erasable pattern.
 
 Face matches are presentation-only hints, never authentication. They cannot
 authorize body actions, disclose private memories, or enter owner settings.
@@ -397,23 +419,25 @@ defaults until the selected hardware is documented and calibrated.
   response composition, plus visual-history metadata round trips and malformed
   record rejection.
 - Plain JVM unit tests cover person-label gating, bounded Spanish name extraction
-  and cancellation, metadata migration, and confirmed-name serialization.
+  and cancellation, metadata migration, face-registry serialization, embedding
+  normalization, conservative matching, and ambiguity rejection.
 - Standard-library Python unit tests cover strict body-protocol parsing, bounded
   two-servo trajectories, native capability limits, idempotent command IDs,
   deadline rejection, heartbeat watchdog, completion, and emergency stop.
-- Catalog tests require five unique entries with immutable revisions or numeric
+- Catalog tests require six unique entries with immutable revisions or numeric
   asset IDs, known sizes, purpose-appropriate filenames, and SHA-256 hashes,
-  including the reviewed YOLO26n ONNX pin.
+  including the reviewed YOLO26n and SFace ONNX pins.
 - Android build and lint validate manifest/API integration when an SDK is present.
 - A Redmi Note 10 Pro on Android 13 has produced `ki`, `kik`, and `Kiko` partial
   hypotheses plus `Kiko`/`Quico` final alternatives, confirming the current
   end-to-end wake-word path.
 - A repeatable device test is still required before microphone behavior can be
   treated as regression-tested. Rear-camera preview/capture, eye rendering,
-  ONNX Runtime object-detection results/performance, visual-history persistence/
-  rendering/deletion, person-name listening/confirmation, and offline TTS also
-  require physical-device validation; Android BLE, BlueZ, GPIO, and
-  physical-servo integration remain untested.
+  ONNX Runtime object-detection and SFace results/performance, platform face-crop
+  quality, visual-history persistence/rendering/deletion, encrypted enrollment,
+  name listening/confirmation, and offline TTS also require physical-device
+  validation; Android BLE, BlueZ, GPIO, and physical-servo integration remain
+  untested.
 - Download endpoint probes validate the GGUF magic bytes for all public catalog
   artifacts. Full transfer, cancellation, resumption, and checksum verification
   still require physical-device validation.
