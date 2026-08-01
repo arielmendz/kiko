@@ -1,0 +1,9 @@
+{
+  "protocolVersion": 1,
+  "commandId": "fixture-stop-1",
+  "type": "STOPPED",
+  "data": {
+    "reason": "requested",
+    "stoppedCommandId": "fixture-move-3"
+  }
+}

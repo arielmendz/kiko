@@ -1,5 +1,9 @@
 # Local model catalog
 
+This is the exact technical inventory. For a plain-language explanation of why
+models are downloaded and fingerprint-checked, see the
+[owner guide](USER_GUIDE.md#before-the-first-use).
+
 Kiko downloads one pinned artifact per catalog entry. Pinning an immutable
 repository revision or numeric release-asset ID and verifying the expected
 SHA-256 protects the app from silently receiving different bytes when an upstream

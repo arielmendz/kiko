@@ -59,6 +59,30 @@
     <string name="action_visual_history">Historial visual</string>
     <string name="action_person_memories">Memorias</string>
     <string name="action_sleep">Sueño</string>
+    <string name="body_simulator_mode">Cuerpo simulado · protocolo v1 en bucle local</string>
+    <string name="body_simulator_detail">Protocolo local seguro · ningún servo ni radio Bluetooth está conectado.</string>
+    <string name="action_stop_simulation">Detener simulación</string>
+    <plurals name="body_steps_started">
+        <item quantity="one">Simulación: dando %1$d paso…</item>
+        <item quantity="other">Simulación: dando %1$d pasos…</item>
+    </plurals>
+    <string name="body_dance_started">Simulación: bailando…</string>
+    <plurals name="body_steps_completed_response">
+        <item quantity="one">Simulación completada: di %1$d paso.</item>
+        <item quantity="other">Simulación completada: di %1$d pasos.</item>
+    </plurals>
+    <string name="body_dance_completed_response">Simulación completada: bailé.</string>
+    <string name="body_stopped_response">Simulación detenida.</string>
+    <string name="body_nothing_to_stop_response">No había una simulación en movimiento.</string>
+    <string name="body_steps_missing_response">¿Cuántos pasos quieres que simule? Puedes pedir de uno a seis.</string>
+    <string name="body_steps_invalid_response">No entendí el número de pasos. Puedes pedir de uno a seis.</string>
+    <plurals name="body_steps_out_of_range_response">
+        <item quantity="one">Sólo puedo simular %1$d paso.</item>
+        <item quantity="other">Sólo puedo simular entre 1 y %1$d pasos.</item>
+    </plurals>
+    <string name="body_action_unavailable_response">Esa acción no está disponible en el cuerpo simulado.</string>
+    <string name="body_action_failed_response">La simulación no pudo ejecutar esa acción.</string>
+    <string name="body_busy_response">Ya hay una simulación en movimiento. Di «para» o pulsa DETENER SIMULACIÓN.</string>
     <string name="detail_person_memory_updated">memoria actualizada</string>
     <string name="detail_person_memory_consulted">Respuesta desde la memoria local cifrada.</string>
     <string name="detail_person_memory_update_failed">No pude actualizar la memoria local.</string>

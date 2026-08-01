@@ -1,0 +1,9 @@
+{
+  "protocolVersion": 1,
+  "commandId": "fixture-move-3",
+  "type": "ACCEPTED",
+  "data": {
+    "action": "MOVE_STEPS",
+    "estimatedDurationMs": 3000
+  }
+}

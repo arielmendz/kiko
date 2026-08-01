@@ -12,7 +12,7 @@ import android.util.AttributeSet;
 import android.view.View;
 
 public final class KikoEyesView extends View {
-    private static final float EYE_SCALE = 0.90f;
+    private static final float EYE_SCALE = 0.72f;
 
     private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint outlinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -105,6 +105,18 @@ public final class KikoEyesView extends View {
             float fullHeight,
             KikoEyeMotion.Sample sample
     ) {
+        if (sample.getOpenness() <= 0f) {
+            outlinePaint.setColor(Color.rgb(5, 8, 14));
+            canvas.drawLine(
+                    centerX - width * 0.42f,
+                    centerY,
+                    centerX + width * 0.42f,
+                    centerY,
+                    outlinePaint
+            );
+            return;
+        }
+
         float visibleHeight = Math.max(dp(5), fullHeight * sample.getOpenness());
         eyeBounds.set(
                 centerX - width * 0.5f,

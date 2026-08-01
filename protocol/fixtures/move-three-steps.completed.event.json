@@ -1,0 +1,8 @@
+{
+  "protocolVersion": 1,
+  "commandId": "fixture-move-3",
+  "type": "COMPLETED",
+  "data": {
+    "action": "MOVE_STEPS"
+  }
+}

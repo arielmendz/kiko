@@ -66,6 +66,9 @@
   forget one person, or erase all person memories locally.
 - Reduce the native googly-eye dimensions by approximately ten percent while
   preserving their positions and animations.
+- Keep the smaller native eyes closed while waiting for “kiko”, open and animate
+  them only during active post-wake command listening, and reduce their current
+  dimensions by a further twenty percent.
 - Add encrypted structured memory for named cats and dogs, including owner,
   species, favorite food, likes, age, spoken queries, and unified inspect/delete
   controls in **Memorias**.
@@ -79,3 +82,14 @@
   separate initially-disabled sleep policy that deletes only conclusively
   unrecognized, still-unnamed photos while reporting retained/deleted/group
   counts without exposing names.
+- Remove only the obsolete EfficientDet final/partial artifacts left by the
+  replaced vision stack, and make pet-kind normalization locale-independent.
+- Add the Android hardware-free body-command loop: deterministic Spanish
+  step/dance/stop parsing, native six-step and allowlisted-routine policy,
+  command IDs and deadlines, an explicit simulated transport, honest Spanish
+  simulation states, lifecycle cancellation, and voice/on-screen emergency stop
+  without Bluetooth or physical motion.
+- Replace the timing-only Android body simulator with a protocol-level loopback:
+  strict v1 UTF-8 JSON command/event validation, negotiated capabilities, unique
+  heartbeats, peer watchdog/deadline/disconnect behavior, invalid-telemetry stop,
+  and shared Android/Python fixtures for every wire command and event type.

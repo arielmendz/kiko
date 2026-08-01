@@ -1,5 +1,6 @@
 package com.kiko.app;
 
+import java.util.Locale;
 import java.util.Objects;
 
 public final class PetMemoryCommand {
@@ -47,7 +48,7 @@ public final class PetMemoryCommand {
         }
 
         static Kind fromDescriptor(String descriptor) {
-            String normalized = descriptor.trim().toLowerCase();
+            String normalized = descriptor.trim().toLowerCase(Locale.ROOT);
             for (Kind kind : values()) {
                 if (normalized.equals(kind.word)
                         || normalized.equals(kind.indefinitePhrase)

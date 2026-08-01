@@ -27,8 +27,12 @@ final class KikoEyeMotion {
                 return new Sample(0.26f, 0f, 0f);
             case RESTING:
             default:
-                return new Sample(0.62f, 0f, 0f);
+                return new Sample(0f, 0f, 0f);
         }
+    }
+
+    static Mode wakeSessionMode(boolean wakeWordDetected, boolean listening) {
+        return wakeWordDetected && listening ? Mode.LISTENING : Mode.RESTING;
     }
 
     private static Sample listeningSample(long elapsedMillis) {

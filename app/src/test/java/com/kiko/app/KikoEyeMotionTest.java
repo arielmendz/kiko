@@ -44,16 +44,42 @@ public final class KikoEyeMotionTest {
     }
 
     @Test
-    public void squintIsNarrowerThanRestingEyes() {
+    public void restingEyesAreFullyClosed() {
         float resting = KikoEyeMotion.sample(
                 KikoEyeMotion.Mode.RESTING,
                 0L
+        ).getOpenness();
+
+        assertEquals(0f, resting, TOLERANCE);
+    }
+
+    @Test
+    public void squintIsNarrowerThanOpenListeningEyes() {
+        float listening = KikoEyeMotion.sample(
+                KikoEyeMotion.Mode.LISTENING,
+                500L
         ).getOpenness();
         float squinting = KikoEyeMotion.sample(
                 KikoEyeMotion.Mode.SQUINTING,
                 0L
         ).getOpenness();
 
-        assertTrue(squinting < resting);
+        assertTrue(squinting < listening);
+    }
+
+    @Test
+    public void wakeSessionOpensOnlyAfterDetectionWhileListening() {
+        assertEquals(
+                KikoEyeMotion.Mode.RESTING,
+                KikoEyeMotion.wakeSessionMode(false, true)
+        );
+        assertEquals(
+                KikoEyeMotion.Mode.RESTING,
+                KikoEyeMotion.wakeSessionMode(true, false)
+        );
+        assertEquals(
+                KikoEyeMotion.Mode.LISTENING,
+                KikoEyeMotion.wakeSessionMode(true, true)
+        );
     }
 }

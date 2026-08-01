@@ -1,0 +1,9 @@
+{
+  "protocolVersion": 1,
+  "commandId": "fixture-dance-1",
+  "type": "DANCE",
+  "arguments": {
+    "routineId": "seal_wiggle"
+  },
+  "timeoutMs": 5000
+}

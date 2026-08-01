@@ -4,6 +4,15 @@ Kiko is a noncommercial physical toy whose spoken interaction is in Spanish. The
 initial product does not expose a general automation platform. It recognizes a
 small, versioned set of toy behaviors and answers in Spanish.
 
+This is a precise product contract, not the easiest first introduction. New
+owners should start with the [plain-language owner guide](USER_GUIDE.md).
+
+Status labels in this document mean:
+
+- **Delivered** — available in the current Android app;
+- **Partial** — available only through the specific flow described; and
+- **Planned** — a target contract, not an available command.
+
 The complete Mermaid sequence diagrams for these behaviors are in
 `docs/FLOWS.md`.
 
@@ -15,52 +24,52 @@ A normal interaction begins with the wake word and one Spanish request:
 “Kiko” -> “escuchando!” -> petición -> respuesta o acción
 ```
 
-The app may accept “Kiko, da tres pasos” as one utterance once the app-owned audio
-pipeline exists. Commands in other languages are outside the initial acceptance
-criteria. Internal tool identifiers may remain stable English identifiers, but
+The current foreground recognizer accepts “Kiko, da tres pasos” in one utterance
+or “Kiko” followed by the command within ten seconds. Commands in other languages
+are outside the initial acceptance criteria. Internal tool identifiers may remain stable English identifiers, but
 descriptions, training examples, clarifications, confirmations, errors, and
 spoken/displayed answers are Spanish.
 
-The required command families are:
+The command families are:
 
-| Spanish examples | Internal intent | Result |
-| --- | --- | --- |
-| “Da tres pasos”, “camina cinco pasos” | `move_steps` | Move exactly the validated number of steps, then stop |
-| “Baila”, “haz un baile” | `dance` | Run a bounded native dance routine |
-| “¿Qué sabes de los dinosaurios?” | `answer_about` | Answer in Spanish from the selected local model and relevant local memories |
-| “¿Qué ves?” | `describe_scene` | Capture one current frame and describe it in Spanish |
-| “¿A quién ves?” | `recognize_faces` | Capture one current frame and name only locally enrolled faces |
-| “Recuerda esto: mi color favorito es verde” | `remember_fact` | Confirm and store the supplied fact locally |
-| “Recuerda lo que ves” | `remember_observation` | Confirm and store the latest textual scene observation, not the image |
-| “Recuerda esta cara como Ana” | `enroll_face` | Confirm and locally enroll a face embedding under the supplied name |
-| “La comida favorita de Pedro es la pasta” | `set_person_favorite_food` | Immediately store this complete explicit structured fact |
-| “A Pedro le gusta el fútbol”, “Pedro tiene 10 años” | `update_person_memory` | Add or replace the bounded person field and show “memoria actualizada” |
-| “¿Qué le gusta a Pedro?”, “¿qué sabes de Pedro?”, “¿cuál es la comida favorita de Pedro?” | `query_person_memory` | Answer only from Pedro's encrypted structured record |
-| “Luna es la gata de Pedro”, “Pedro tiene un perro que se llama Toby” | `register_pet` | Store a named cat or dog and optional owner in a separate encrypted registry |
-| “La gata Luna tiene 3 años”, “a la gata Luna le gusta dormir” | `update_pet_memory` | Add or replace one species-qualified pet field and show “memoria actualizada” |
-| “¿Qué sabes de la gata Luna?”, “¿qué mascotas tiene Pedro?” | `query_pet_memory` | Answer only from matching encrypted cat/dog records |
+| Status | Spanish examples | Internal intent | Current or target result |
+| --- | --- | --- | --- |
+| **Delivered as simulation** | “Da tres pasos”, “camina cinco pasos” | `move_steps` | Complete the validated protocol loop; no physical movement |
+| **Delivered as simulation** | “Baila”, “haz un baile” | `dance` | Complete the allowlisted `seal_wiggle` protocol loop; no physical movement |
+| **Delivered** | “¿Qué ves?” | `describe_scene` | Capture one frame and report bounded local object/face results in Spanish |
+| **Delivered** | “La comida favorita de Pedro es la pasta” | `set_person_favorite_food` | Store this complete explicit structured fact |
+| **Delivered** | “A Pedro le gusta el fútbol”, “Pedro tiene 10 años” | `update_person_memory` | Add or replace the bounded person field and show “memoria actualizada” |
+| **Delivered** | “¿Qué le gusta a Pedro?”, “¿qué sabes de Pedro?”, “¿cuál es la comida favorita de Pedro?” | `query_person_memory` | Answer only from Pedro's encrypted structured record |
+| **Delivered** | “Luna es la gata de Pedro”, “Pedro tiene un perro que se llama Toby” | `register_pet` | Store a named cat or dog and optional owner in a separate encrypted registry |
+| **Delivered** | “La gata Luna tiene 3 años”, “a la gata Luna le gusta dormir” | `update_pet_memory` | Add or replace one species-qualified pet field and show “memoria actualizada” |
+| **Delivered** | “¿Qué sabes de la gata Luna?”, “¿qué mascotas tiene Pedro?” | `query_pet_memory` | Answer only from matching encrypted cat/dog records |
+| **Partial** | Name prompt after an unknown face in “¿qué ves?” | face enrollment | Save only after an unlocked on-screen confirmation |
+| **Planned** | “¿Qué sabes de los dinosaurios?” | `answer_about` | Answer in Spanish from a future selected local language model |
+| **Planned** | “¿A quién ves?” | `recognize_faces` | Run a standalone enrolled-face flow |
+| **Planned** | “Recuerda esto: mi color favorito es verde” | `remember_fact` | Confirm and store a future general fact record |
+| **Planned** | “Recuerda lo que ves” | `remember_observation` | Confirm and store the latest textual scene observation |
+| **Planned** | “Recuerda esta cara como Ana” | `enroll_face` | Run a standalone explicit face-enrollment flow |
 
-Supporting safety and memory commands are also required:
+Supporting commands have different delivery status:
 
-- “Para”, “detente” and an on-screen stop control invoke a native emergency stop
-  without waiting for a language model.
-- “Olvida que…”, “olvida a Ana” and “borra todos tus recuerdos” delete the
-  corresponding local memory after confirmation.
-- “¿Qué recuerdas de mí?” retrieves only memories stored by Kiko and labels them
-  as memories rather than general model knowledge.
+- **Delivered for the simulated body:** “Para”, “detente” and the on-screen stop
+  control invoke a native stop without waiting for a language model.
+- **Delivered on screen:** unlocked owner controls delete individual or complete
+  person, pet, face, and visual-history records within their documented scope.
+- **Planned spoken commands:** “Olvida que…”, “olvida a Ana”, “borra todos tus
+  recuerdos”, and the general “¿Qué recuerdas de mí?” flow.
 
 ## Routing rules
 
-Commands use two lanes:
+The target architecture uses two lanes. Only the deterministic lane is delivered:
 
 1. A deterministic Spanish grammar handles emergency stop, clearly formed step
-   counts, dance, the shipped bounded person/pet-memory updates/queries, and
-   explicit memory deletion. A `SpanishNumberParser` converts
-   forms such as `3`, `tres`, and common speech-recognition variants into an
-   integer.
-2. The local `ActionRouter` handles paraphrases, clarification, knowledge,
-   vision, face-memory, and fact-memory requests. Its output is still parsed and
-   validated as an untrusted proposal.
+   counts, dance, and the shipped bounded person/pet-memory updates and queries.
+   A `SpanishNumberParser` converts forms such as `3` and `tres` into an integer.
+2. **Planned:** a local `ActionRouter` handles paraphrases, clarification,
+   knowledge, vision, face-memory, and general fact-memory requests. It does not
+   exist in the current app. Its future output must still be parsed and validated
+   as an untrusted proposal.
 
 The deterministic lane wins when both lanes could match. The model must never
 reinterpret an emergency stop or increase a requested movement.
@@ -71,13 +80,20 @@ reinterpret an emergency stop or increase a requested movement.
 
 `move_steps` contains an integer `count`, a command ID, and a deadline. Valid
 counts are `1..maxStepsPerCommand`, where the maximum comes from the connected
-body's versioned capability profile. Until that profile is known, movement
-remains disabled rather than assuming a safe maximum.
+body's versioned capability profile. The shipped Android loopback negotiates the
+same six-step maximum from its protocol-level peer; it produces no movement. A
+future physical transport remains disabled until it receives a real versioned
+profile.
 
 Zero, negative, fractional, missing, or out-of-range counts produce a Spanish
 clarification or refusal. The body acknowledges each accepted command and reports
 completion or failure. A timeout, disconnect, stop request, or invalid telemetry
 halts motion.
+
+The delivered loopback recognizes exact “da/dame/camina/avanza N paso(s)” forms,
+assigns a native command ID and ten-second deadline, serializes `MOVE_STEPS`,
+sends protocol heartbeats, and reports “Simulación completada” only after a valid
+`COMPLETED` event. Missing, fractional, or out-of-range counts never dispatch.
 
 ### Dance
 
@@ -85,7 +101,14 @@ halts motion.
 macro with a fixed maximum duration; the model does not generate joint or motor
 sequences. Stop interrupts it immediately.
 
+The delivered Android loopback maps “baila”, “haz un baile”, and “haz el baile”
+only to `seal_wiggle`; the encoded command completes after the peer returns the
+matching 2.4-second simulated plan's `COMPLETED` event. It does not contain or
+generate servo angles.
+
 ### Local knowledge
+
+**Status: planned.** No language-model inference or `ActionRouter` runs today.
 
 `answer_about` receives a topic and retrieves relevant local memories before
 asking the conversational model. It does not search the internet. The response
@@ -178,14 +201,15 @@ limited to 1–40. “¿Qué mascotas tiene Pedro?” retrieves all pets explici
 linked to that owner. Unsupported species and unqualified pet facts are not
 stored as pet records.
 
-`remember_fact` stores content explicitly provided by the user. A
-`MemoryCandidateResolver` may also propose the immediately preceding user
-statement or tool result from the current command session. Kiko reads back the
-exact proposed memory in Spanish and stores it only after confirmation. If the
-user says only “recuerda esto” and the current session does not contain one
-unambiguous candidate, Kiko asks “¿Qué quieres que recuerde?”.
+The following general-memory design is **planned, not shipped**. `remember_fact`
+would store content explicitly provided by the user. A
+`MemoryCandidateResolver` could also propose the immediately preceding user
+statement or tool result from the current command session. Kiko would read back
+the exact proposed memory in Spanish and store it only after confirmation. If the
+user said only “recuerda esto” and the current session did not contain one
+unambiguous candidate, Kiko would ask “¿Qué quieres que recuerde?”.
 
-`remember_observation` may store the latest textual result from `VisionEngine`
+`remember_observation` could store the latest textual result from `VisionEngine`
 after confirmation. It does not create a camera-frame memory record; the
 underlying `describe_scene` capture may already exist separately in visual
 troubleshooting history. Memory resolution never searches arbitrary past
@@ -229,8 +253,9 @@ uninstall.
 
 ## Response states
 
-Every command produces one visible state and, when an offline Spanish voice is
-available, the same response through local speech synthesis:
+This is the target shared lifecycle. The current app implements the relevant
+visible subset for wake-word, scene, structured-memory, and simulated-body flows.
+When an offline Spanish voice is available, current results are also spoken:
 
 ```text
 ESCUCHANDO -> PENSANDO -> CONFIRMANDO? -> ACTUANDO? -> RESPONDIENDO -> LISTO

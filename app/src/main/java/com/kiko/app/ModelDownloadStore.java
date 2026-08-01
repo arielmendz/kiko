@@ -31,6 +31,7 @@ public final class ModelDownloadStore {
         this.context = context.getApplicationContext();
         downloadManager = context.getSystemService(DownloadManager.class);
         preferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        LegacyModelArtifactCleaner.clean(getModelsDirectory());
     }
 
     public File getModelsDirectory() {

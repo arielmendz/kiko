@@ -2,9 +2,9 @@
 
 ## Status
 
-Version 1 is a bootstrap contract. The parser, simulator, and safety controller
-exist; Android BLE central, Raspberry Pi BlueZ peripheral, and GPIO adapters do
-not.
+Version 1 is a bootstrap contract. The Python parser/safety controller and the
+Android strict codec/protocol loopback exist; Android BLE central, Raspberry Pi
+BlueZ peripheral, and GPIO adapters do not.
 
 The Android app is the BLE central. The Raspberry Pi body is the BLE peripheral.
 The Pi advertises only while unpaired or explicitly placed into a future physical
@@ -78,7 +78,10 @@ structured `data`.
 | `REJECTED` | Command was invalid, unsafe, unsupported, or impossible |
 
 The schemas in `schemas/` describe the wire envelope. The Python parser is
-intentionally stricter about command-specific argument fields.
+intentionally stricter about command-specific argument fields. The Android codec
+applies the same command-specific checks and also validates every event shape.
+Shared fixtures in `fixtures/` cover every command and event type and are consumed
+by both JVM and Python tests.
 
 ## BLE loss and reconnection
 

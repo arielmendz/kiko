@@ -1,5 +1,9 @@
 # Architecture
 
+This is the maintainer-level technical reference. The
+[plain-language owner guide](USER_GUIDE.md) explains the same major boundaries
+with analogies and a smaller diagram.
+
 ## Current design
 
 The application is one Android app module with wake-word, scene-perception,
@@ -14,9 +18,11 @@ Wake-word components:
   `SpeechRecognizer`, user-visible status, and explicit eye/preview modes.
 - `KikoEyesView` draws the two native eyes without image assets or network
   dependencies. `KikoEyeMotion` maps a mode and elapsed time to deterministic
-  openness and gaze values: resting, listening with blink/side-to-side motion, or
-  squinting during a scene request. Continuous motion stops when Android disables
-  animations.
+  openness and gaze values: a fully closed wake-wait pose, post-wake listening
+  with blink/side-to-side motion, or squinting during a scene request. The
+  activity selects the animated mode only while both a wake word has been
+  detected and command recognition is active. Continuous motion stops when
+  Android disables animations.
 - `WakeWordMatcher` is a platform-independent function that normalizes recognition
   hypotheses and detects the exact `kiko` token.
 - `SpeechLanguageSelector` is a platform-independent function that prefers
@@ -132,8 +138,36 @@ Model-management components:
 - `ModelLibraryActivity` renders catalog state and handles explicit user actions.
 - `ModelDownloadStore` delegates durable transfer to Android `DownloadManager`,
   persists download identifiers, reports progress, and finalizes verified files.
+- `LegacyModelArtifactCleaner` removes only the two allowlisted obsolete
+  EfficientDet final/partial filenames when model storage is initialized. It does
+  not enumerate or delete unknown files.
 - `HuggingFaceTokenStore` encrypts the optional Gemma read token with an AES-GCM
   key held by Android Keystore.
+
+Hardware-free body-command components:
+
+- `SpanishBodyCommandParser` recognizes only exact normalized step, dance, and
+  stop forms. `SpanishNumberParser` converts digits and the bounded Spanish number
+  words used by that grammar.
+- `BodyActionPolicy` validates parsed actions against `BodyCapabilities` and is
+  the only Android layer that creates typed commands with IDs and deadlines.
+- `BodyProtocolCodec` strictly encodes and decodes the v1 command/event envelopes
+  with exact fields, command-specific argument/data shapes, protocol and ID
+  validation, integer semantics matching the Python parser, strict UTF-8 JSON,
+  and the 512-byte message limit. Gson 2.14.0 supplies only local JSON syntax
+  parsing and performs no I/O.
+- `BodyTransport` is independent of BLE. Its current `LoopbackBodyTransport`
+  negotiates capabilities and exchanges encoded messages with
+  `LoopbackBodyPeer`, which mirrors the Python safety controller's six-step,
+  `seal_wiggle`, idempotency, busy, duration, deadline, disconnect, and watchdog
+  states using only a monotonic clock.
+- `BodyWireLink` is the byte-level seam. The loopback implementation is in-memory;
+  the future BLE link will carry the same complete payloads without changing the
+  policy, codec, or UI-facing `BodyTransport` contract.
+- `MainActivity` schedules simulation ticks, keeps speech listening during an
+  active simulation only so “para”/“detente” can bypass the wake word, and exposes
+  a native stop button. It labels every state as simulated and never claims that
+  a body moved.
 
 Data flows in one direction:
 
@@ -386,7 +420,8 @@ flowchart TD
   guarantees Spanish clarifications, status, and responses.
 - `DeterministicCommandParser` has priority for emergency stop, unambiguous step
   counts, allowlisted dance requests, and explicit deletion. These commands do not
-  wait for generative inference.
+  wait for generative inference. `SpanishBodyCommandParser` is the shipped
+  step/dance/stop subset of this boundary.
 - `EmergencyStopController` receives the native “para”/“detente” grammar and
   on-screen stop control. It sends `STOP` without waiting for the action router,
   memory, vision, or conversational pipeline.
@@ -427,9 +462,11 @@ flowchart TD
   temporary embedding exists only for the bounded name/confirmation window; a
   rejection discards it. A confirmation encrypts it and links it to the
   whole-photo visual-history record for inspection and deletion.
-- `BodyBleTransport` is the future Android BLE-central boundary. It owns discovery,
-  bonding, GATT connection state, MTU negotiation, protocol version negotiation,
-  heartbeats, reconnects, and event indications.
+- `BodyTransport` is currently implemented by `LoopbackBodyTransport` over an
+  in-memory `BodyWireLink`, without a radio. A future Android BLE-central wire
+  link will own discovery, bonding, GATT connection state, MTU negotiation,
+  reconnects, and event indications while reusing capability negotiation,
+  heartbeats, event validation, and the protocol codec.
 - The Raspberry Pi body service is the BLE peripheral and final physical safety
   authority. Its transport-independent `BodyController` validates semantic
   commands, enforces idempotency, deadlines and a connection watchdog, and selects
@@ -453,11 +490,13 @@ The initial command set is deliberately narrow and versioned in
 - Native deterministic parsing owns the shipped person and cat/dog favorite-food,
   likes, age, registration, and query grammars. Only final hypotheses can mutate
   that memory.
-- Exact step and dance requests take the deterministic path when possible.
-- The action model handles paraphrases and selects knowledge, perception, face,
-  and memory tools.
-- The conversational model answers local knowledge questions after retrieving
-  relevant confirmed memories.
+- Exact step and dance requests now take the deterministic path into the Android
+  simulator. Counts outside `1..6`, missing/fractional counts, and unknown forms
+  produce Spanish clarification or refusal without dispatch.
+- A **future** action model may handle paraphrases and select knowledge,
+  perception, face, and memory tools. No action model runs in the current app.
+- A **future** conversational model may answer local knowledge questions after
+  retrieving relevant confirmed memories. No language-model inference runs now.
 - The current local object detector receives a still frame only after “¿qué ves?”.
   Any future vision model must preserve that explicit gating.
 - The face matcher receives a still frame only after explicit “¿qué ves?” and a
@@ -472,12 +511,12 @@ an action as complete only after the native tool returns an acknowledgement.
 
 Durable memory is opt-in per command. In the shipped bounded person grammar, a
 complete direct declaration is itself the explicit storage command and shows
-**memoria actualizada** after the encrypted commit. `remember_fact` will later
-store more general supplied content. `remember_observation` stores only a
-confirmed textual scene description. A bare
-“recuerda esto” may resolve only one unambiguous candidate from the current
-command session and must read it back before saving. Ordinary conversation remains
-ephemeral. `PersonMemoryStore` and `PetMemoryStore` currently use small encrypted
+**memoria actualizada** after the encrypted commit. The planned `remember_fact`
+will store more general supplied content, and planned `remember_observation` will
+store only a confirmed textual scene description. A future bare “recuerda esto”
+may resolve only one unambiguous candidate from the current command session and
+must read it back before saving. Ordinary conversation remains ephemeral.
+`PersonMemoryStore` and `PetMemoryStore` currently use small encrypted
 versioned binary registries because their schemas and maximum cardinalities are
 bounded; larger general memory should prefer structured SQLite records and local
 full-text search over introducing another embedding model.
@@ -588,11 +627,22 @@ simulated servo pair. It does not yet advertise through BlueZ or drive GPIO. No
 physical angles, pins, pulse widths, or power assumptions become production
 defaults until the selected hardware is documented and calibrated.
 
+The Android `LoopbackBodyTransport` is the UI-facing protocol test double. It
+uses `BodyProtocolCodec` to exchange complete JSON messages with an in-memory
+`LoopbackBodyPeer`, negotiates the Pi capability values
+(`maxStepsPerCommand=6`, `seal_wiggle`, stop support, two servos, 750 ms
+watchdog), sends unique heartbeat IDs, and reports completion only after decoding
+`COMPLETED`. It does not negotiate ATT MTU, open Bluetooth, or claim physical
+completion. Replacing `BodyWireLink` with BLE must preserve `BodyActionPolicy`,
+the strict codec, native stop path, lifecycle cancellation, invalid-telemetry
+stop, and honest acknowledgement handling.
+
 ## Verification strategy
 
 - Plain JVM unit tests cover normalization and wake-word boundaries.
-- Plain JVM unit tests cover listening gaze direction, blink closure/reopening,
-  and squint openness independently from Android drawing.
+- Plain JVM unit tests cover the closed wake-wait pose, the post-wake listening
+  gate, gaze direction, blink closure/reopening, and squint openness independently
+  from Android drawing.
 - Plain JVM unit tests cover the “¿qué ves?” grammar and deterministic Spanish
   response composition, plus visual-history metadata round trips and malformed
   record rejection.
@@ -612,6 +662,14 @@ defaults until the selected hardware is documented and calibrated.
   most-recent replacement fields, preservation of older populated fields,
   accent-insensitive like deduplication, no-op input, and refusal to discard more
   than twenty distinct likes during a merge.
+- Plain JVM unit tests cover Spanish number/step/dance/stop parsing,
+  clarification, capability-bounded policy decisions, strict v1 command/event
+  JSON, shared fixture compatibility, capability negotiation, heartbeat/watchdog
+  behavior, simulated completion, deadline/busy rejection, idempotent command
+  IDs, invalid-telemetry stop, emergency stop, and lifecycle disconnect.
+- Plain JVM tests verify that model-storage migration deletes only the allowlisted
+  obsolete EfficientDet final/partial filenames and preserves current or unknown
+  artifacts.
 - Standard-library Python unit tests cover strict body-protocol parsing, bounded
   two-servo trajectories, native capability limits, idempotent command IDs,
   deadline rejection, heartbeat watchdog, completion, and emergency stop.
@@ -622,15 +680,24 @@ defaults until the selected hardware is documented and calibrated.
 - A Redmi Note 10 Pro on Android 13 has produced `ki`, `kik`, and `Kiko` partial
   hypotheses plus `Kiko`/`Quico` final alternatives, confirming the current
   end-to-end wake-word path.
+- On that phone, manual acceptance checks completed a simulated three-step
+  command and `seal_wiggle` dance, rejected a seven-step request, and stopped an
+  active six-step command on wake-free “para”. Startup cleanup removed the
+  allowlisted obsolete EfficientDet artifact while exact pinned YOLO26n and SFace
+  hashes remained present. The installed protocol-loopback build also displayed
+  its v1 loopback mode and completed a three-step command. These checks exercised
+  no Bluetooth or physical body.
 - A repeatable device test is still required before microphone behavior can be
-  treated as regression-tested. Rear-camera preview/capture, eye rendering,
-  ONNX Runtime object-detection and SFace results/performance, platform face-crop
-  quality, visual-history persistence/rendering/deletion, encrypted enrollment,
-  name listening/confirmation, structured person/pet-memory speech routing,
-  encrypted memory persistence/owner UI, visual pet tagging/grouping, constrained
-  sleep scheduling, photo cleanup, consolidation/report UI, and offline TTS also require
-  physical-device validation; Android BLE, BlueZ, GPIO, and physical-servo
-  integration remain untested.
+  treated as regression-tested. One Redmi Note 10 Pro check visibly opened and
+  moved the eyes after wake, squinted during a scene request, and retrieved one
+  stored “likes” fact correctly. Rear-camera preview/capture, ONNX Runtime
+  object-detection and SFace correctness/performance, platform face-crop quality,
+  visual-history persistence/rendering/deletion, encrypted enrollment, name
+  listening/confirmation, memory persistence/owner UI, pet routing, visual pet
+  tagging/grouping, constrained sleep scheduling, photo cleanup,
+  consolidation/report UI, and offline TTS still need repeatable physical-device
+  validation; Android BLE, BlueZ, GPIO, and physical-servo integration remain
+  untested.
 - Download endpoint probes validate the GGUF magic bytes for all public catalog
   artifacts. Full transfer, cancellation, resumption, and checksum verification
   still require physical-device validation.

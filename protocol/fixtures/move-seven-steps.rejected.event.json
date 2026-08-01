@@ -1,0 +1,8 @@
+{
+  "protocolVersion": 1,
+  "commandId": "fixture-move-7",
+  "type": "REJECTED",
+  "data": {
+    "reason": "count_out_of_range"
+  }
+}

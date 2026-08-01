@@ -2,6 +2,11 @@
 
 Research date: 2026-07-30.
 
+> This is a dated research snapshot, not a list of shipped models or commands.
+> Kiko currently performs no language-model inference. See
+> [Product](PRODUCT.md) for current behavior and [Local model catalog](MODELS.md)
+> for the exact artifacts available in the app.
+
 ## Decision
 
 Kiko should treat tool selection and physical execution as separate systems. The

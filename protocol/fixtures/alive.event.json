@@ -1,0 +1,8 @@
+{
+  "protocolVersion": 1,
+  "commandId": "fixture-heartbeat-1",
+  "type": "ALIVE",
+  "data": {
+    "moving": true
+  }
+}

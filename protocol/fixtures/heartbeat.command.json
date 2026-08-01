@@ -1,0 +1,7 @@
+{
+  "protocolVersion": 1,
+  "commandId": "fixture-heartbeat-1",
+  "type": "HEARTBEAT",
+  "arguments": {},
+  "timeoutMs": 1000
+}

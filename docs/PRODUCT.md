@@ -1,5 +1,8 @@
 # Product
 
+This document is the detailed product source of truth. For a friendlier overview
+of what an owner can do today, see the [plain-language owner guide](USER_GUIDE.md).
+
 ## Vision
 
 Kiko is the mind of a physical companion toy: an Android application that runs
@@ -39,9 +42,13 @@ While the app is visible:
 3. it verifies that an on-device Spanish model is installed, requesting a system
    model download when one is available but missing;
 4. it listens for “kiko”; and
-5. it opens, blinks, and moves a pair of native googly eyes side to side while
-   actively listening; and
+5. it keeps a pair of native googly eyes closed while waiting for “kiko”, then
+   opens, blinks, and moves them side to side only while listening for the
+   post-wake command; and
 6. it displays “escuchando!” when a recognition hypothesis contains that word.
+
+The eyes are twenty percent smaller in each dimension than the preceding eye
+design.
 
 Matching is case-insensitive, accent-insensitive, and token-based, so punctuation
 around the word is accepted while substrings such as “kikongo” are rejected.
@@ -68,7 +75,7 @@ Android Keystore and never logs it.
 The language artifacts remain download-only. YOLO26n and SFace are loaded only
 for an explicit “¿qué ves?” request.
 
-## Current milestone: first local “¿qué ves?” loop
+## Delivered milestone: first local “¿qué ves?” loop
 
 After hearing “Kiko”, the visible app opens a ten-second command window. If the
 user says “¿qué ves?” in that window, or says “Kiko, ¿qué ves?” in one utterance,
@@ -203,6 +210,33 @@ the library's unused network-state and foreground-service permissions; sleep
 maintenance cannot use the app's separately authorized model-download network
 path.
 
+## Delivered milestone: hardware-free embodied command loop
+
+After “kiko”, Kiko deterministically recognizes “da/camina N pasos”, “baila” and
+“haz un baile” without a language model. `SpanishNumberParser` accepts digits and
+Spanish number words. The native `BodyActionPolicy` validates step counts against
+the simulated capability limit of six, selects only the allowlisted
+`seal_wiggle` routine, and attaches a command ID and deadline before dispatch.
+
+`LoopbackBodyTransport` first obtains a v1 `CAPABILITIES` event, then serializes
+commands through the same strict, 512-byte UTF-8 JSON contract consumed by the
+Pi. An in-memory `LoopbackBodyPeer` decodes those bytes, mirrors the Pi's
+accepted, completed, stopped, rejected, busy, deadline, idempotency, and 750 ms
+watchdog states, and returns encoded events for Android to validate. Android
+sends unique `HEARTBEAT` commands while an action is active. Invalid telemetry,
+a missed heartbeat, deadline, explicit stop, or lifecycle disconnect ends the
+action rather than reporting completion.
+
+One simulated step lasts one second and the dance lasts 2.4 seconds, matching the
+Raspberry Pi motion-plan durations. Every visible and spoken response says that
+it is a simulation. While an action is active, “para”, “detente”, and the native
+**Detener simulación** button bypass the normal wake requirement. Leaving the
+activity disconnects the loopback and stops the simulation.
+
+This milestone validates Android command routing, v1 serialization, capability
+negotiation, event validation, and watchdog behavior only. It is not evidence
+that BLE discovery/GATT, BlueZ, GPIO, power, calibration, or servos work.
+
 ## Current limitations
 
 - Recognition is active only while the activity is in the foreground.
@@ -213,8 +247,9 @@ path.
 - The current wake-word mechanism is a bootstrap dependency on an Android platform
   service, not the final app-owned local model.
 - No language-model or vision-language-model inference is implemented, and there
-  is no Android-to-body BLE communication yet. Object detection and face
-  embedding are the only app-owned model executions.
+  is no Android-to-body BLE communication yet. Step and dance results are clearly
+  labeled simulations; object detection and face embedding are the only app-owned
+  model executions.
 - Person-memory language is intentionally bounded to favorite food, likes, age,
   and the three documented query forms. Paraphrases, relationships, birthdays,
   addresses, arbitrary biographies, and fact-level editing are not yet parsed.
@@ -222,9 +257,10 @@ path.
   favorite food, likes, ages 1–40, and the documented queries. Other species,
   breeds, medical details, and unqualified names are never resolved as pet
   records.
-- Structured person-memory speech routing, encrypted persistence, the Memorias
-  screen, pet-memory routing, and offline spoken answers still require
-  physical-device validation.
+- One Redmi Note 10 Pro check retrieved a stored “likes” fact correctly through
+  speech. Repeatable tests are still needed for encrypted persistence across
+  restarts, the Memorias owner controls, pet routing, deletion, and offline
+  spoken answers.
 - WorkManager constraint behavior, thermal retry, process-restart persistence,
   registry consolidation, photo cleanup, and the **Sueño** report/control screen still require
   physical-device validation. Android chooses the actual execution time and may
@@ -248,8 +284,9 @@ path.
   distribution build should split APKs or app bundles by ABI.
 - Spoken output requires an installed Spanish voice that Android marks as not
   requiring a network connection; otherwise the complete answer remains visible.
-- Rear-camera live preview/capture, eye animation timing, and Spanish TTS still
-  require physical-device validation.
+- The same phone visibly opened and moved the eyes after wake, and squinted them
+  during a scene request. Repeatable checks are still needed for exact animation
+  timing, rear-camera preview/capture, and Spanish TTS across supported devices.
 - Face crop quality, SFace latency/matching, encrypted enrollment, the
   post-detection name flow, and identity deletion still require physical-device
   validation.
@@ -267,6 +304,12 @@ path.
 - Physical-device validation on a Redmi Note 10 Pro running Android 13 confirmed
   partial and final “Kiko” detection after the diagnostic fix. Other recognizers
   and device models remain unverified.
+- The same phone confirmed the hardware-free body loop for a completed three-step
+  command, native refusal of seven steps, wake-free “para” interruption during a
+  six-step command, and completed `seal_wiggle` dance simulation. After the
+  protocol-loopback replacement it also displayed the v1 loopback label and
+  completed a three-step command through that build. No physical body was
+  connected during these checks.
 
 ## Roadmap
 
@@ -279,18 +322,22 @@ path.
    YOLO26n on-device, report bounded object detections with an offline Spanish
    voice, retain an inspectable troubleshooting record, and recognize/enroll one
    explicitly confirmed face locally with SFace.
-4. **Embodied tool contract:** define typed read-only sensor tools and
-   state-changing body tools, plus native validation, confirmation, deadlines,
-   and emergency-stop behavior.
-5. **Spanish command core:** implement deterministic stop, step-count, dance, and
-   clarification parsing plus local Spanish responses.
+4. **Embodied tool contract (body-command subset delivered):** typed simulated
+   step/dance/stop commands now have native capabilities, validation, command IDs,
+   deadlines, lifecycle cancellation, and emergency stop. Read-only sensor tools
+   and physical-action confirmation classes remain future work.
+5. **Spanish command core (body subset delivered):** deterministic stop,
+   step-count, dance, and clarification parsing plus local Spanish simulation
+   responses now run on Android. Memory deletion and broader clarification remain
+   future extensions.
 6. **App-owned audio pipeline:** replace the platform recognizer with deterministic
    streaming audio capture and a bundled wake-word model.
 7. **Local action router:** benchmark and run a Kiko-specific FunctionGemma 270M
    fine-tune and larger tool-capable baselines on supported Android hardware.
-8. **BLE body link (scaffolded):** finish the Android BLE central and Raspberry Pi
-   BlueZ peripheral around the versioned GATT command/event protocol, bonding,
-   capability negotiation, heartbeats, reconnects, and emergency stop.
+8. **BLE body link (protocol loopback delivered):** replace the in-memory wire
+   link with an Android BLE central and Raspberry Pi BlueZ peripheral while
+   preserving the delivered versioned codec, capability negotiation, heartbeats,
+   reconnect rules, event validation, and emergency stop.
 9. **Local memory (face, person, cat/dog, grouped visual history, and safe
    sleep-maintenance portions delivered):** extend the shipped encrypted registries with general confirmed
    facts, observation memories, derived indexes, and benchmark-gated opt-in
@@ -304,7 +351,7 @@ The current model recommendation and alternatives are recorded in
 `docs/MODEL_RESEARCH.md`. It is a benchmark hypothesis rather than a shipped
 default.
 
-## Non-goals for the current milestone
+## Non-goals for the current implementation
 
 - Background or always-on listening.
 - Cloud speech recognition or cloud AI.
